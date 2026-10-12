@@ -1,21 +1,21 @@
-# Hum Phase 1: Companion App Spec
+# Engage Phase 1: Companion App Spec
 
 Status: draft for review. No tech stack chosen on purpose.
 
-## 1. What Hum is
+## 1. What Engage is
 
-Hum is a second-screen engagement layer for any video meeting (Meet, Zoom, Teams, Zoho). It is not a video platform. The host creates a link, pastes it in the meeting chat, and attendees open it in a second window or on a phone.
+Engage is a second-screen engagement layer for any video meeting (Meet, Zoom, Teams, Zoho). It is not a video platform. The host creates a link, pastes it in the meeting chat, and attendees open it in a second window on their laptop, next to the meeting. A phone also works, but it is not the primary target.
 
 **Goal:** in a 1 to 2 hour meeting, turn passive attendees into small, frequent contributors, without anyone feeling watched.
 
 ## 2. Design principles (corporate-safe)
 
-1. **The meeting always wins.** Hum never competes with the speaker. Games yield to the meeting and pause on demand.
-2. **Hum only reports what Hum can measure.** No guessing who is "speaking" or "idle" in the video call. Engagement means actions taken inside Hum.
+1. **The meeting always wins.** Engage never competes with the speaker. Games yield to the meeting and pause on demand.
+2. **Engage only reports what Engage can measure.** No guessing who is "speaking" or "idle" in the video call. Engagement means actions taken inside Engage.
 3. **Transparent by default.** Attendees see, at join time, exactly what the host can see. No hidden tracking.
 4. **Aggregate first, named second, never ranked.** No leaderboards, no per-person idle timers, no "engagement scores" tied to a name.
-5. **Invitations, never accusations.** Hum nudges the host to invite people. It does not flag people.
-6. **Zero friction.** No login, no install, under 10 seconds to join, phone-first.
+5. **Invitations, never accusations.** Engage nudges the host to invite people. It does not flag people.
+6. **Zero friction.** No login, no install, under 10 seconds to join, laptop-first.
 7. **Hosts do almost nothing.** A meeting should run well with one tap to start.
 
 ## 3. Phase 1 scope
@@ -47,10 +47,10 @@ These are Phase 2 candidates. The Phase 1 design must not block them.
 
 ## 4. Host flow
 
-1. **Create.** Pick a template (standup, all-hands, review, workshop) or blank. Optionally paste an agenda with times. Hum suggests moments and game windows from the agenda.
-2. **Share.** Hum shows the link, the code, and a ready-to-paste chat message.
+1. **Create.** Pick a template (standup, all-hands, review, workshop) or blank. Optionally paste an agenda with times. Engage suggests moments and game windows from the agenda.
+2. **Share.** Engage shows the link, the code, and a ready-to-paste chat message.
 3. **Run.** Host console shows the room pulse, question queue and a moment launcher. A "quiet mode" auto-fires standard pulse checks at set times so the host can do nothing and still get value.
-4. **Respond.** When engagement dips, Hum suggests an action (pulse check, break, ask the room a question). The host confirms with one tap.
+4. **Respond.** When engagement dips, Engage suggests an action (pulse check, break, ask the room a question). The host confirms with one tap.
 5. **Close.** Host summary: engagement over time, poll results, top questions, unanswered questions, bingo and prediction outcomes.
 
 ## 5. Attendee flow
@@ -66,7 +66,7 @@ These are Phase 2 candidates. The Phase 1 design must not block them.
 **Always on (aggregate):**
 
 - Participants joined versus invited
-- **Room engagement**: share of participants with at least one Hum action in the last 5 minutes
+- **Room engagement**: share of participants with at least one Engage action in the last 5 minutes
 - Engagement over time, with dips highlighted
 - Reaction volume, including "lost me" and "too fast" spikes
 - Poll and pulse results
@@ -82,11 +82,11 @@ These are Phase 2 candidates. The Phase 1 design must not block them.
 
 ### The "quiet" nudge, redesigned
 
-The original mockup showed "3 people haven't spoken in 40 minutes." Hum can't measure speech, and naming quiet people is the most adoption-risky element. Phase 1 version:
+The original mockup showed "3 people haven't spoken in 40 minutes." Engage can't measure speech, and naming quiet people is the most adoption-risky element. Phase 1 version:
 
 - Host sees an aggregate: "Participation has dropped over the last 10 minutes. Try a pulse check or open the floor?"
 - If the host sends an invitation, it goes to **everyone** as a prompt ("Share your view on the next topic"), not to chosen individuals.
-- Optional per-meeting setting for a named "haven't participated in Hum" list is **off by default** and, if enabled, is disclosed to attendees at join.
+- Optional per-meeting setting for a named "haven't participated in Engage" list is **off by default** and, if enabled, is disclosed to attendees at join.
 
 ## 7. Game and interaction rules
 
@@ -113,14 +113,14 @@ The original mockup showed "3 people haven't spoken in 40 minutes." Hum can't me
 | Participation rate | Share of joined who take at least one action |
 | Repeat intent | Attendees who say they would use it again |
 | Host effort | Host taps per meeting, host-reported effort |
-| Distraction | Attendee survey: "Did Hum pull you out of the meeting?" |
+| Distraction | Attendee survey: "Did Engage pull you out of the meeting?" |
 
 Decision rule: if participation is high and distraction is low, Phase 1 works. If participation is low, fix interactions before adding features.
 
 ## 10. Open questions
 
 1. **Buyer.** Team lead, HR/L&D, or exec sponsor? This decides how much host visibility is acceptable.
-2. **Device.** Phone-first, or desktop second window first? The mockups are desktop-shaped.
+2. **Device.** Decided: laptop-first. The attendee view is built for a half-width browser window beside the meeting and collapses to tabs when narrow.
 3. **Retention and compliance.** How long is data kept, and do enterprise buyers need admin controls or SSO before piloting?
 4. **Meeting size.** Is the target 5 to 15 people, or 200? Large meetings need question moderation and reaction rate limits.
 5. **Named participation.** Is the opt-in named list needed at all, or does it risk adoption?

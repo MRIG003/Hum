@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engage</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="landing">
+    <header class="row spread">
+      <span class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</span>
+    </header>
+
+    <div class="landing-grid">
+      <section class="hero">
+        <h1>Keep everyone in the meeting, not just the loudest few.</h1>
+        <p>Engage runs beside Google Meet, Zoom, Teams or Zoho. Paste one link in the meeting chat and attendees join in a second window with no sign-up.</p>
+        <ul class="bullets">
+          <li>Reactions, questions and quick polls that take seconds</li>
+          <li>A host view of the room's mood, with no per-person tracking</li>
+          <li>Optional light games, always paused with one click</li>
+        </ul>
+      </section>
+
+      <div class="stack">
+        <form id="create" class="card stack" autocomplete="off">
+          <h2>Start a meeting</h2>
+          <div>
+            <label for="title">Meeting title</label>
+            <input id="title" type="text" maxlength="80" placeholder="Q3 roadmap review" required>
+          </div>
+          <div>
+            <label for="expected">Expected attendees (optional)</label>
+            <input id="expected" type="number" min="0" max="1000" placeholder="14">
+          </div>
+          <p id="create-error" class="small" style="color: var(--bad)" role="alert" hidden></p>
+          <button class="primary" type="submit">Create meeting</button>
+        </form>
+
+        <form id="join" class="card stack" autocomplete="off">
+          <h2>Join with a code</h2>
+          <div class="row">
+            <input id="code" class="grow" type="text" maxlength="6" placeholder="ABC123" aria-label="Meeting code" style="text-transform: uppercase">
+            <button type="submit">Join</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="/js/index.js"></script>
+</body>
+</html>

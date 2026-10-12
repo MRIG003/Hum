@@ -1,10 +1,10 @@
-# Hum Product Plan
+# Engage Product Plan
 
 Status: draft. Builds on `docs/phase1-spec.md`. Still stack-neutral: Section 8 lists the technical decisions to make, with the criteria for each.
 
 ## 1. Product in one paragraph
 
-Hum is an engagement layer that sits beside any video meeting. The host creates a link, pastes it into the meeting chat, and attendees take small, optional actions on a second screen. It is not a video platform. It exists so that in a 1 to 2 hour corporate meeting, people contribute throughout instead of for about 5 minutes, and nobody feels monitored.
+Engage is an engagement layer that sits beside any video meeting. The host creates a link, pastes it into the meeting chat, and attendees take small, optional actions on a second screen. It is not a video platform. It exists so that in a 1 to 2 hour corporate meeting, people contribute throughout instead of for about 5 minutes, and nobody feels monitored.
 
 ## 2. Assumptions I'm planning around
 
@@ -13,7 +13,7 @@ You asked me to choose what is best for corporate use. These defaults can be cha
 | Question | Planning default | Why |
 |---|---|---|
 | Buyer | Team leads and meeting owners first (bottom-up). HR/L&D and exec sponsors come later. | Fastest path to real usage. No procurement needed to try it. |
-| Device | Phone-first responsive web, with a usable desktop second-window layout | A second window is awkward on a single-screen laptop. A phone is the safer assumption. |
+| Device | **Laptop-first** (decided). Attendees use a half-width browser window beside the meeting. Phones work but are secondary. | Engage is a platform product used during laptop meetings. The layout collapses to tabs when the window is narrow. |
 | Meeting size | Designed for 5 to 50, tested to 200 | Most corporate meetings fall here. Large meetings need moderation. |
 | Retention | Raw data deleted 30 days after the meeting, summaries kept until the host deletes them | Defensible default for enterprise review. Configurable later. |
 | Named participation | Off by default | Protects trust. Revisit after pilots. |
@@ -21,7 +21,7 @@ You asked me to choose what is best for corporate use. These defaults can be cha
 
 ## 3. Users
 
-| User | Wants | Fears | Hum must |
+| User | Wants | Fears | Engage must |
 |---|---|---|---|
 | **Host / meeting owner** | A room that stays engaged, with no extra work | Wasted time, a tool that breaks mid-meeting | Start in one tap, run on its own, fail safely |
 | **Attendee** | A reason to stay present, small fun, a useful notepad | Being tracked or judged, being pulled out of the meeting | Be optional, private by default, never block anything |
@@ -49,7 +49,7 @@ Each milestone is usable on its own, so pilots can start after M2.
 - Design system basics, brand, accessibility baseline.
 - Environments and deployment, CI, error tracking, basic analytics.
 - Meeting and participant data model.
-- **Done when:** a "hello meeting" can be created and joined on a phone and a laptop.
+- **Done when:** a "hello meeting" can be created and joined on a laptop, with a phone as a secondary check.
 
 ### M1. Core loop (week 2 to 5)
 - Create meeting, link and code, paste-ready chat message.
@@ -81,8 +81,8 @@ Each milestone is usable on its own, so pilots can start after M2.
 
 These come from the spec and should be treated as review criteria for every feature.
 
-1. Hum never competes with the speaker. Anything that needs sustained attention is out.
-2. Hum only reports what it can measure. No inferred "idle" or "speaking."
+1. Engage never competes with the speaker. Anything that needs sustained attention is out.
+2. Engage only reports what it can measure. No inferred "idle" or "speaking."
 3. Everything the host can see is disclosed to attendees at join.
 4. No individual rankings or public leaderboards.
 5. Every prompt is skippable with no penalty.
@@ -96,7 +96,7 @@ These come from the spec and should be treated as review criteria for every feat
 | Participation rate | Share of joined with at least one action | Above 70% |
 | Participation spread | Share of actions made by the top 20% of participants | Falling over a meeting (more even is better) |
 | Repeat intent | "I would use this again" | Above 70% of attendees, all pilot hosts |
-| Distraction | "Hum pulled me out of the meeting" | Below 10% yes |
+| Distraction | "Engage pulled me out of the meeting" | Below 10% yes |
 | Host effort | Host taps per meeting after setup | Under 10 |
 | Reliability | Meetings with no host-visible failure | 95% or better |
 
@@ -110,7 +110,7 @@ I haven't picked a stack. These are the decisions, with the criteria that should
 |---|---|
 | **Realtime channel** (how reactions, polls, and pulse reach everyone live) | Handles 200 participants per meeting, reconnects after dropped phone connections, low latency under 1 second |
 | **Hosting and data region** | Where enterprise customers' data may live, cost at idle, simple to run for a small team |
-| **Frontend delivery** | Phone-first, fast first load on bad networks, installable as a web app without an app-store release |
+| **Frontend delivery** | Laptop-first, usable in a half-width window, fast first load on bad networks, installable as a web app without an app-store release |
 | **Storage** | Short-lived meeting data with automatic deletion, plus durable summaries |
 | **Identity** | Anonymous participants without accounts, host sign-in with email or work login |
 | **Abuse and moderation** | Rate limits on reactions and questions, host can remove a question or a participant |
@@ -136,9 +136,9 @@ Engagement series is derived from Actions: for each interval, the share of parti
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| Attendees see Hum as monitoring and ignore it | High | High | Disclosure at join, aggregate-only default, anonymous option, no rankings |
+| Attendees see Engage as monitoring and ignore it | High | High | Disclosure at join, aggregate-only default, anonymous option, no rankings |
 | Hosts forget to launch moments, so there is no value | High | High | Quiet mode, templates, agenda-driven suggestions |
-| Second screen is a distraction or doesn't fit single-screen laptops | Medium | High | Phone-first, small prompts, Focus moment, measure distraction in pilots |
+| Second screen is a distraction or doesn't fit single-screen laptops | Medium | High | Half-width window layout, small prompts, Focus moment, measure distraction in pilots |
 | Realtime breaks in a big meeting | Medium | High | Load test to 200 before pilots, graceful offline behavior |
 | Enterprise security review blocks pilots | Medium | Medium | Minimal data, no recording, short retention, simple privacy summary |
 | Gamification feels childish | Medium | Medium | Optional, restrained visuals, corporate-friendly content, host can disable |
@@ -153,7 +153,7 @@ Engagement series is derived from Actions: for each interval, the share of parti
 
 ## 12. Decisions I need from you
 
-1. Confirm or change the planning defaults in Section 2, especially buyer and device.
+1. Confirm or change the planning defaults in Section 2, especially the buyer. The device is now decided: laptop-first.
 2. Team size and timeline: is the 10 to 12 week estimate realistic for you?
 3. Do you have a pilot company or hosts lined up for Phase 0?
-4. Brand and name: is "Hum" final?
+4. Brand and name: decided, the product is called Engage.

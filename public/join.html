@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engage</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="row">
+      <span class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</span>
+      <span class="title" id="title"></span>
+    </div>
+    <div class="row">
+      <span class="chip num" id="clock" hidden>0:00</span>
+      <span class="chip accent num" id="points" hidden title="Only you can see your points">0 pts</span>
+    </div>
+  </header>
+
+  <p id="conn" class="banner warn" role="status" hidden>Connection lost. Reconnecting…</p>
+
+  <section id="gate" class="center-card" hidden>
+    <div class="card stack">
+      <div>
+        <h1 id="gate-title">Join the meeting</h1>
+        <p class="muted" id="gate-sub"></p>
+      </div>
+      <form id="join-form" class="stack" autocomplete="off">
+        <div>
+          <label for="name">Your first name</label>
+          <input id="name" type="text" maxlength="30" placeholder="Priya">
+        </div>
+        <label class="check"><input id="anon" type="checkbox"> Join anonymously</label>
+        <div class="disclosure">
+          <b>What the host can see</b>
+          <ul>
+            <li>How many people joined and how many took part</li>
+            <li>Group results for polls, pulse checks and reactions</li>
+            <li>Your questions, with your name unless you post anonymously</li>
+          </ul>
+          <b>What the host cannot see</b>
+          <ul>
+            <li>Who is idle, quiet, or looking at another window</li>
+            <li>Your points, bingo card, predictions or notes</li>
+          </ul>
+        </div>
+        <p id="join-error" class="small" style="color: var(--bad)" role="alert" hidden></p>
+        <button class="primary" type="submit">Join</button>
+      </form>
+    </div>
+  </section>
+
+  <p id="fatal" class="center-card card" role="alert" hidden></p>
+
+  <main id="app" class="att-wrap" hidden>
+    <div id="banners" class="stack"></div>
+
+    <div class="tabs att-tabs" id="att-tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="live">Live</button>
+      <button role="tab" aria-selected="false" data-tab="play">Games &amp; notes</button>
+    </div>
+
+    <div class="att-grid" id="att-grid" data-active="live">
+      <div class="col stack" data-panel="live">
+        <section class="card" aria-label="Right now">
+          <h2>Right now</h2>
+          <div id="moment"></div>
+        </section>
+
+        <section class="card" aria-label="Reactions">
+          <h2>Quick reactions</h2>
+          <div class="react-bar" id="reactions"></div>
+        </section>
+
+        <section class="card" aria-label="Questions">
+          <div class="card-head"><h2>Questions for the host</h2><span class="small muted" id="q-count"></span></div>
+          <form id="ask-form" class="stack" autocomplete="off">
+            <input id="ask-text" type="text" maxlength="280" placeholder="Type a question" aria-label="Your question">
+            <div class="row spread">
+              <label class="check small"><input id="ask-anon" type="checkbox"> Post anonymously</label>
+              <button class="primary" type="submit">Ask</button>
+            </div>
+          </form>
+          <div class="q-list" id="questions" style="margin-top: 12px"></div>
+        </section>
+      </div>
+
+      <div class="col stack" data-panel="play">
+        <section class="card" aria-label="Games">
+          <div class="card-head"><h2>Buzzword bingo</h2><span class="chip" id="games-chip"></span></div>
+          <p class="small muted" id="games-note"></p>
+          <div class="bingo" id="bingo" style="margin-top: 10px"></div>
+
+          <h3 style="margin-top: 16px" id="pred-question"></h3>
+          <div class="row" id="pred-buttons" style="margin-top: 8px"></div>
+          <p class="small muted" id="pred-note" style="margin-top: 6px"></p>
+
+          <div class="score" style="margin-top: 16px"><span>Your score <span class="small muted">(private)</span></span><b class="num" id="score">0 pts</b></div>
+        </section>
+
+        <section class="card" aria-label="Private notes">
+          <div class="card-head"><h2>My notes</h2><span class="chip">Stays on this device</span></div>
+          <textarea id="notes" rows="5" placeholder="Jot down anything. Nobody else can see this." aria-label="Notes"></textarea>
+          <form id="todo-form" class="row" style="margin-top: 10px" autocomplete="off">
+            <input id="todo-text" class="grow" type="text" maxlength="140" placeholder="Add an action item" aria-label="Action item">
+            <button type="submit">Add</button>
+          </form>
+          <div class="checklist" id="todos" style="margin-top: 10px"></div>
+          <div class="row" style="margin-top: 12px"><button id="export-notes">Download notes</button></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <main id="recap" class="att-wrap" hidden></main>
+
+  <script type="module" src="/js/attendee.js"></script>
+</body>
+</html>
