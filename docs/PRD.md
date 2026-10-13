@@ -7,7 +7,7 @@
 | **Date** | 13 October 2026 |
 | **Scope** | Phase 1 in detail. Phases 1.5 to 3 at roadmap level |
 | **Primary device** | Laptop, in a second browser window beside the meeting |
-| **Related documents** | `docs/phase1-spec.md`, `docs/product-plan.md`, `docs/engage-product-plan-report.pdf` |
+| **Related documents** | `docs/phase1-spec.md`, `docs/product-plan.md`, `docs/engage-product-plan-report.pdf`, `docs/design/Engage-UX-UI-Design.pdf`, `docs/architecture/Engage-Technical-Architecture.pdf`, `docs/architecture/Engage-Engineering-Plan.pdf` |
 
 **How to read the status column.** *Built* means it exists in the current prototype and has been tested. *Planned* means it is a requirement that is not built yet. *Later* means it is deliberately outside Phase 1.
 
@@ -265,7 +265,7 @@ Estimates assume a team of about three people.
 | NFR-4 | **Availability** during meeting hours | 99.5% during pilots. Measured by meetings with no host-visible failure (target 95% or better) |
 | NFR-5 | **Join speed** | Under 10 seconds from link click to the live view on a normal connection |
 | NFR-6 | **Browsers** | Latest two versions of Chrome, Edge, Safari, Firefox. Mini window requires a Chromium browser |
-| NFR-7 | **Accessibility** | WCAG 2.1 AA target. Full keyboard use, visible focus, screen-reader labels, reduced-motion support, no information by colour alone. Currently partly done (focus rings, labels, reduced motion), with no formal audit |
+| NFR-7 | **Accessibility** | WCAG 2.1 AA target. Full keyboard use, visible focus, screen-reader labels, reduced-motion support, no information by colour alone. Partly done: focus rings, labels, reduced motion, and measured colour contrast (three defects fixed, see the design document). No formal audit yet |
 | NFR-8 | **Layout** | Laptop-first. Two columns at 860 px and wider, tabs below that. A half-width window on a 1,440 px laptop is 720 px, so the tab layout is the common case beside a meeting. No horizontal scrolling down to 360 px |
 | NFR-9 | **Language** | English first. Text kept out of logic to allow translation later |
 | NFR-10 | **Observability** | Privacy-safe logs and a live health view for the team. No meeting content in logs |
@@ -313,7 +313,7 @@ Not collected in Phase 1: audio, video, screen content, transcripts, tab focus, 
 
 | State | Content | Trigger |
 |---|---|---|
-| Pill | About 150 by 40 pixels. A dot when something is waiting | Default on join |
+| Pill | About 190 by 46 pixels, with an I'm presenting button. A dot when something is waiting | Default on join |
 | Card | The current prompt, reactions, questions | Attendee clicks the pill |
 | Presenting | Window closed. Nothing shows or queues | Attendee clicks "I'm presenting" |
 

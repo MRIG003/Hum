@@ -48,7 +48,9 @@ server/meeting.js   Meeting state and rules (no I/O, fully unit tested)
 server/index.js     HTTP, static files, WebSocket wiring, rate limits
 public/             Plain HTML, CSS and ES modules (no build)
 test/               Unit tests and a WebSocket integration test
-docs/               Product spec and plan
+docs/               Spec, plan, PRD, report
+docs/design/        UX/UI design package and clickable prototype
+docs/architecture/  Technical architecture, engineering plan, diagrams
 ```
 
 ## Known limits (prototype)

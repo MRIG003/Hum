@@ -8,7 +8,9 @@
   --accent: #2563c9;
   --accent-soft: #dde9fb;
   --accent-text: #123e86;
-  --ok: #1d7a46;
+  --on-accent: #ffffff;
+  --border-strong: #85847d;
+  --ok: #1a6f40;
   --ok-soft: #d8f0e1;
   --warn: #8a5a00;
   --warn-soft: #fbecc8;
@@ -29,6 +31,8 @@
     --accent: #6ea2ff;
     --accent-soft: #1e3050;
     --accent-text: #bcd3ff;
+    --on-accent: #0b1f44;
+    --border-strong: #74746d;
     --ok: #6fd69a;
     --ok-soft: #173826;
     --warn: #f0c25a;
@@ -80,7 +84,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
   font-weight: 600;
 }
 button.primary:hover { filter: brightness(1.08); background: var(--accent); }
@@ -94,7 +98,7 @@ button.selected { background: var(--accent-soft); border-color: var(--accent); c
 input[type="text"], input[type="number"], textarea, select {
   width: 100%;
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: 9px;
   padding: 8px 10px;
   min-height: 38px;

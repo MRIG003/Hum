@@ -1,0 +1,627 @@
+<title>Engage Prototype</title>
+<style>
+/* Layout: one tabbed workspace. Left, a laptop stage you can click. Right, controls that simulate the host. */
+:root {
+  --bg:#f6f6f3; --surface:#ffffff; --surface-2:#f2f2ee; --border:#e4e3dc; --text:#1c1c1a; --muted:#6a6963;
+  --accent:#2563c9; --accent-soft:#dde9fb; --accent-text:#123e86; --on-accent:#ffffff; --border-strong:#85847d;
+  --ok:#1a6f40; --ok-soft:#d8f0e1; --warn:#8a5a00; --warn-soft:#fbecc8; --bad:#a3322a; --bad-soft:#f8dcd8;
+  --stage:#202124; --stage-tile:#35363a; --stage-ink:#e8eaed; --stage-mute:#9aa0a6; --stage-slide:#f4f4f1; --stage-slide-ink:#1c1c1a;
+  --shadow:0 1px 2px rgba(20,20,10,.05); --float:0 18px 50px rgba(0,0,0,.45);
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#151514; --surface:#1e1e1c; --surface-2:#272725; --border:#353532; --text:#efefea; --muted:#a3a29a;
+    --accent:#6ea2ff; --accent-soft:#1e3050; --accent-text:#bcd3ff; --on-accent:#0b1f44; --border-strong:#74746d;
+    --ok:#6fd69a; --ok-soft:#173826; --warn:#f0c25a; --warn-soft:#3a2f12; --bad:#ff9d93; --bad-soft:#43201c;
+    --shadow:none; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#151514; --surface:#1e1e1c; --surface-2:#272725; --border:#353532; --text:#efefea; --muted:#a3a29a;
+  --accent:#6ea2ff; --accent-soft:#1e3050; --accent-text:#bcd3ff; --on-accent:#0b1f44; --border-strong:#74746d;
+  --ok:#6fd69a; --ok-soft:#173826; --warn:#f0c25a; --warn-soft:#3a2f12; --bad:#ff9d93; --bad-soft:#43201c;
+  --shadow:none; color-scheme: dark;
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { background:var(--bg); color:var(--text); font:14px/1.5 var(--font); padding-inline:20px; padding-block:0 48px; }
+h1,h2,h3 { margin:0; line-height:1.2; text-wrap:balance; }
+h1 { font-size:24px; } h2 { font-size:16px; } h3 { font-size:13px; color:var(--muted); font-weight:600; }
+p { margin:0; text-wrap:pretty; }
+.muted { color:var(--muted); } .small { font-size:12.5px; } .num { font-variant-numeric:tabular-nums; }
+button { font:inherit; color:inherit; cursor:pointer; border:1px solid var(--border); background:var(--surface); border-radius:9px; padding:7px 12px; min-height:34px; transition:background-color .12s,border-color .12s,transform .08s; }
+button:hover { background:var(--surface-2); } button:active { transform:scale(.97); }
+button:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); font-weight:600; }
+button.primary:hover { filter:brightness(1.08); background:var(--accent); }
+button.sel { background:var(--accent-soft); border-color:var(--accent); color:var(--accent-text); }
+button.ghost { background:transparent; border-color:transparent; color:var(--muted); }
+button.ghost:hover { background:var(--surface-2); }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+input[type=text], select { font:inherit; color:inherit; width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:9px; padding:7px 10px; min-height:36px; }
+label { display:block; font-size:12.5px; color:var(--muted); margin-bottom:4px; }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .spread { justify-content:space-between; } .grow { flex:1; min-width:0; }
+.stack { display:grid; gap:10px; }
+.chip { display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:99px; background:var(--surface-2); font-size:12px; white-space:nowrap; }
+.chip.ok { background:var(--ok-soft); color:var(--ok); } .chip.warn { background:var(--warn-soft); color:var(--warn); } .chip.accent { background:var(--accent-soft); color:var(--accent-text); }
+.card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px 16px; box-shadow:var(--shadow); min-width:0; }
+.card > h2 + * { margin-top:10px; }
+
+.top { position:sticky; top:env(safe-area-inset-top,0px); z-index:10; background:var(--bg); display:flex; justify-content:space-between; align-items:center; gap:12px 20px; flex-wrap:wrap; padding-block:14px 10px; border-bottom:1px solid var(--border); margin-bottom:20px; }
+.brand { display:inline-flex; align-items:center; gap:8px; font-weight:700; letter-spacing:-.01em; }
+.mark { width:22px; height:22px; border-radius:7px; background:var(--accent); display:grid; place-items:center; flex:none; }
+.mark::after { content:""; width:8px; height:8px; border-radius:50%; background:#fff; }
+.tabs { display:flex; gap:4px; flex-wrap:wrap; }
+.tabs button { border-color:transparent; background:transparent; color:var(--muted); }
+.tabs button[aria-selected="true"] { background:var(--accent-soft); color:var(--accent-text); font-weight:600; }
+.lead { display:grid; gap:6px; max-width:78ch; margin-bottom:16px; }
+.workspace { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:16px; align-items:start; }
+.stage-wrap { width:100%; overflow-x:auto; border-radius:14px; }
+.laptop { background:#2b2b2d; border-radius:18px 18px 6px 6px; padding:14px 14px 18px; width:fit-content; min-width:100%; }
+.screen { position:relative; overflow:hidden; border-radius:4px; background:var(--stage); }
+.stage { position:absolute; left:0; top:0; width:1280px; height:760px; transform-origin:0 0; background:var(--stage); color:var(--stage-ink); }
+.base { height:12px; background:linear-gradient(#c9c9cc,#a9a9ad); border-radius:0 0 16px 16px; margin:0 -22px; }
+
+/* fake video meeting */
+.m-top { height:40px; display:flex; align-items:center; justify-content:space-between; padding:0 18px; font-size:14px; color:var(--stage-mute); }
+.m-grid { position:absolute; left:12px; right:12px; top:44px; bottom:84px; display:grid; gap:10px; }
+.m-grid.gallery { grid-template-columns:repeat(3,1fr); grid-template-rows:1fr 1fr; }
+.m-grid.present { grid-template-columns:1fr 200px; grid-template-rows:repeat(3,1fr); }
+.tile { background:var(--stage-tile); border-radius:12px; position:relative; display:grid; place-items:center; min-height:0; }
+.tile.speaking { outline:3px solid #5b9bff; }
+.av { width:84px; height:84px; border-radius:50%; display:grid; place-items:center; font-size:30px; font-weight:600; }
+.present .av { width:46px; height:46px; font-size:18px; }
+.nm { position:absolute; left:10px; bottom:8px; font-size:13px; background:rgba(0,0,0,.45); padding:1px 8px; border-radius:6px; }
+.slide { grid-row:1 / span 3; background:var(--stage-slide); color:var(--stage-slide-ink); border-radius:12px; padding:44px 54px; display:flex; flex-direction:column; gap:14px; }
+.slide b { font-size:34px; letter-spacing:-.01em; } .slide span { font-size:20px; color:#55544e; }
+.slide .bars { display:flex; gap:18px; align-items:flex-end; height:200px; margin-top:20px; }
+.slide .bars i { width:70px; background:#2563c9; border-radius:6px 6px 0 0; display:block; }
+.m-bar { position:absolute; left:0; right:0; bottom:0; height:76px; display:flex; justify-content:center; align-items:center; gap:14px; }
+.m-btn { width:48px; height:48px; border-radius:50%; background:#3c4043; display:grid; place-items:center; }
+.m-btn.end { background:#d93025; width:68px; border-radius:26px; }
+.m-btn svg { width:22px; height:22px; fill:none; stroke:#e8eaed; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+
+/* the Engage mini window */
+.win { position:absolute; right:22px; bottom:96px; z-index:5; color:var(--text); font-size:14px; }
+.win.dragging { transition:none; }
+.pill { display:flex; align-items:center; gap:8px; height:46px; padding:0 8px 0 12px; border-radius:23px; background:var(--surface); border:1px solid var(--border); box-shadow:var(--float); cursor:grab; user-select:none; touch-action:none; }
+.pill .open-btn { display:flex; align-items:center; gap:8px; border:0; background:transparent; padding:0 2px; min-height:36px; font-weight:600; }
+.pill .status { font-size:13px; font-weight:500; color:var(--muted); }
+.pill .status.attn { color:var(--accent-text); }
+.pill .dot { width:9px; height:9px; border-radius:50%; background:var(--accent); flex:none; }
+.pill .icon-btn { width:34px; height:34px; min-height:0; padding:0; border-radius:50%; display:grid; place-items:center; }
+.icon-btn svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.cardwin { width:340px; background:var(--bg); border:1px solid var(--border); border-radius:14px; box-shadow:var(--float); overflow:hidden; }
+.cw-head { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 12px; background:var(--surface); border-bottom:1px solid var(--border); cursor:grab; user-select:none; touch-action:none; }
+.cw-head .t { flex:1; min-width:0; font-weight:700; font-size:13.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cw-head .icon-btn { width:30px; height:30px; min-height:0; padding:0; display:grid; place-items:center; border-radius:8px; }
+.cw-tabs { display:flex; gap:2px; padding:6px 10px 0; }
+.cw-tabs button { border:0; background:transparent; color:var(--muted); border-bottom:2px solid transparent; border-radius:6px 6px 0 0; min-height:30px; padding:4px 10px; font-size:13px; }
+.cw-tabs button[aria-selected="true"] { color:var(--accent-text); border-bottom-color:var(--accent); font-weight:600; }
+.cw-body { padding:10px 12px 12px; display:grid; gap:10px; max-height:430px; overflow:auto; }
+.banner { padding:9px 11px; border-radius:10px; background:var(--accent-soft); color:var(--accent-text); font-size:13px; }
+.banner.focus { background:var(--text); color:var(--bg); }
+.mini { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 11px; display:grid; gap:8px; }
+.opts { display:grid; gap:6px; } .opts button { text-align:left; min-height:34px; }
+.opts button.missed { border-style:dashed; color:var(--muted); }
+.react { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+.react button { display:grid; gap:0; justify-items:center; padding:6px 2px; font-size:10.5px; min-height:0; line-height:1.25; }
+.react button span { font-size:17px; line-height:1.2; }
+.timer { height:4px; background:var(--surface-2); border-radius:3px; overflow:hidden; } .timer > i { display:block; height:100%; background:var(--accent); width:100%; transition:width .25s linear; }
+.res { display:grid; grid-template-columns:minmax(70px,34%) 1fr 36px; gap:8px; align-items:center; font-size:12.5px; }
+.res .bar { height:9px; background:var(--surface-2); border-radius:5px; overflow:hidden; } .res .bar i { display:block; height:100%; background:var(--accent); border-radius:5px; transition:width .3s; }
+.res.good .bar i { background:var(--ok); } .res.miss .bar i { background:var(--muted); }
+.bingo { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.bingo button { min-height:44px; font-size:11.5px; padding:4px; line-height:1.2; } .bingo button.on { background:var(--ok-soft); border-color:var(--ok); color:var(--ok); font-weight:600; }
+.firstrun { position:absolute; inset:0; background:color-mix(in srgb, var(--bg) 92%, transparent); display:grid; align-content:center; gap:10px; padding:16px; z-index:2; }
+.firstrun h3 { color:var(--text); font-size:14px; }
+.ghost-box { position:absolute; right:22px; bottom:96px; width:190px; height:46px; border:1.5px dashed var(--stage-mute); border-radius:23px; color:var(--stage-mute); font-size:12px; display:grid; place-items:center; text-align:center; padding:0 10px; }
+
+.legend { display:flex; gap:8px 16px; flex-wrap:wrap; margin-top:12px; align-items:center; }
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:14px; display:grid; gap:10px; min-width:0; }
+.panel .btns { display:grid; gap:6px; }
+.engage-tab { border:1.5px dashed var(--border); border-radius:12px; padding:12px; display:grid; gap:8px; background:var(--bg); }
+.switch { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.switch button[role=switch] { width:44px; height:26px; min-height:0; padding:0; border-radius:13px; position:relative; background:var(--surface-2); }
+.switch button[role=switch]::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:var(--muted); transition:left .15s; }
+.switch button[aria-checked="true"] { background:var(--accent); border-color:var(--accent); } .switch button[aria-checked="true"]::after { left:21px; background:var(--on-accent); }
+.seg { display:inline-flex; border:1px solid var(--border); border-radius:9px; overflow:hidden; } .seg button { border:0; border-radius:0; background:transparent; } .seg button[aria-pressed="true"] { background:var(--accent-soft); color:var(--accent-text); font-weight:600; }
+
+/* host tab */
+.host-grid { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr); gap:16px; align-items:start; }
+.hbanner { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; padding:12px 14px; border-radius:12px; background:var(--warn-soft); color:var(--warn); }
+.chart-box { width:100%; overflow-x:auto; } .chart-box svg { display:block; width:100%; min-width:520px; height:auto; }
+.chart-box text { fill:var(--muted); font-size:11px; font-family:var(--font); }
+.seg-detail { background:var(--surface-2); border-radius:10px; padding:10px 12px; display:grid; gap:4px; }
+.coach { display:grid; gap:12px; }
+.insight { display:grid; grid-template-columns:28px 1fr; gap:10px; padding:10px 0; border-top:1px solid var(--border); }
+.insight .ic { width:28px; height:28px; border-radius:8px; display:grid; place-items:center; font-weight:700; font-size:13px; background:var(--accent-soft); color:var(--accent-text); }
+.states { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+.sc { display:grid; gap:10px; align-content:start; }
+.sc .when { font-size:12px; color:var(--muted); }
+.demo { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px; display:grid; gap:8px; }
+.toast { background:var(--text); color:var(--bg); padding:9px 13px; border-radius:10px; font-size:13px; width:fit-content; max-width:100%; }
+.err { color:var(--bad); font-size:12.5px; }
+@media (max-width:1060px) { .workspace, .host-grid { grid-template-columns:minmax(0,1fr); } }
+@media (max-width:560px) { body { padding-inline:16px; } h1 { font-size:21px; } }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
+@keyframes ping { 0% { box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow:0 0 0 9px transparent; } }
+.pill .dot.new { animation:ping 1.6s ease-out 2; }
+</style>
+
+<header class="top">
+  <div class="row"><span class="brand"><span class="mark" aria-hidden="true"></span>Engage</span><span class="muted small">Clickable prototype of planned designs. Not connected to a server.</span></div>
+  <div class="tabs" role="tablist" aria-label="Prototype sections">
+    <button role="tab" id="t-att" aria-selected="true" aria-controls="p-att">Attendee on a laptop</button>
+    <button role="tab" id="t-host" aria-selected="false" aria-controls="p-host">Host console</button>
+    <button role="tab" id="t-states" aria-selected="false" aria-controls="p-states">Error and empty states</button>
+  </div>
+</header>
+
+<section id="p-att" role="tabpanel" aria-labelledby="t-att">
+  <div class="lead">
+    <h1>The floating mini window</h1>
+    <p class="muted">Engage stays as a small pill in a corner of the meeting. Click the pill to open it, the dash to shrink it, or the screen icon when you are presenting. Use the panel on the right to act as the host.</p>
+  </div>
+  <div class="workspace">
+    <div>
+      <div class="stage-wrap" id="stageWrap">
+        <div class="laptop" id="laptop">
+          <div class="screen" id="screen">
+            <div class="stage" id="stage">
+              <div class="m-top"><span>● Video meeting · Q3 roadmap review</span><span class="num" id="mClock">24:10</span></div>
+              <div class="m-grid gallery" id="mGrid"></div>
+              <div class="m-bar" aria-hidden="true">
+                <div class="m-btn"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg></div>
+                <div class="m-btn"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3z"/></svg></div>
+                <div class="m-btn"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></div>
+                <div class="m-btn end"><svg viewBox="0 0 24 24"><path d="M4 15c5-5 11-5 16 0l-2 2-3-1v-2c-2-1-4-1-6 0v2l-3 1z"/></svg></div>
+              </div>
+              <div id="winHost"></div>
+            </div>
+          </div>
+        </div>
+        <div class="base"></div>
+      </div>
+      <div class="legend" aria-label="Window states">
+        <span class="chip" id="stateChip">State: Pill</span>
+        <span class="small muted">Drag the pill or the card header to move it. The meeting stays in front of the person who is sharing.</span>
+      </div>
+    </div>
+
+    <aside class="stack">
+      <div class="panel">
+        <h2>Act as the host</h2>
+        <div class="btns">
+          <button data-sim="poll">Launch a poll</button>
+          <button data-sim="recall" class="primary">Launch a recall check</button>
+          <button data-sim="floor">Open the floor</button>
+          <button data-sim="games">Open games (break block)</button>
+          <button data-sim="focus" id="focusBtn">Start Focus moment</button>
+          <button data-sim="reset" class="ghost">Reset prototype</button>
+        </div>
+        <div class="switch"><span class="small">Recall check opens the pill by itself, for up to 20 seconds</span><button role="switch" id="swAuto" aria-checked="true" aria-label="Recall check opens the pill by itself"></button></div>
+        <div class="row small"><span class="muted">Meeting view</span>
+          <span class="seg" role="group" aria-label="Meeting view"><button id="vGal" aria-pressed="true">Gallery</button><button id="vPres" aria-pressed="false">Someone is presenting</button></span></div>
+        <button id="replayNote" class="ghost small">Replay the first-use sharing note</button>
+      </div>
+      <div class="engage-tab" id="engageTab">
+        <div class="row spread"><b>Your Engage tab</b><span class="chip">Not on screen</span></div>
+        <p class="small muted">The main Engage tab keeps the connection and is where presenting mode is turned off.</p>
+        <div class="switch"><span>I'm presenting</span><button role="switch" id="swPres" aria-checked="false" aria-label="I'm presenting"></button></div>
+        <p class="small" id="presInfo">Presenting is off.</p>
+      </div>
+      <div class="panel">
+        <h2>Design notes</h2>
+        <ul class="small muted" style="margin:0;padding-left:18px;display:grid;gap:4px">
+          <li>Polls, floor invitations and games only add a dot to the pill.</li>
+          <li>Only the recall check may open the pill, and never while presenting or in Focus.</li>
+          <li>While presenting, nothing shows and nothing queues. Skipped prompts are only counted.</li>
+          <li>"Missed that" is a normal answer, shown separately from wrong answers.</li>
+          <li>No sound and no notifications anywhere.</li>
+        </ul>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<section id="p-host" role="tabpanel" aria-labelledby="t-host" hidden>
+  <div class="lead">
+    <h1>Host console additions</h1>
+    <p class="muted">Agenda segments tie the engagement chart to topics. The recall check launcher always includes "Missed that". After the meeting, a private coach summary turns the chart into advice.</p>
+  </div>
+  <div class="stack">
+    <div class="hbanner" id="hBanner"><span><b>Suggestion.</b> At 34 minutes, engagement had dropped from 93% to 18% during <b>Budget</b>. Run a recall check on what was just covered, or open the floor.</span>
+      <span class="row"><button class="primary" id="hbRecall">Run a recall check</button><button>Open the floor</button></span></div>
+    <div class="host-grid">
+      <div class="stack">
+        <div class="card">
+          <div class="row spread"><h2>Engagement by agenda segment</h2><span class="chip">Only you can see this</span></div>
+          <div class="chart-box" style="margin-top:10px"><svg id="hChart" viewBox="0 0 760 230" role="img" aria-label="Engagement over the meeting, split by agenda segment"></svg></div>
+          <div class="seg-detail" id="segDetail" aria-live="polite"></div>
+        </div>
+        <div class="card" id="coachCard">
+          <div class="row spread"><h2>After the meeting</h2></div>
+          <div class="row" style="margin-top:10px"><button id="showCoach" class="primary">End meeting and show my coach summary</button><span class="small muted">Preview of the host-only summary</span></div>
+          <div id="coachOut" hidden></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Recall check</h2>
+        <form id="rcForm" class="stack" autocomplete="off">
+          <div><label for="rcQ">Question about what was just said</label><input id="rcQ" type="text" value="Which budget option did we just choose?"></div>
+          <div><label for="rcO">Options (one per line)</label><textarea id="rcO" rows="3" style="width:100%;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--border-strong);border-radius:9px;padding:7px 10px">Cut scope
+Move the date
+Add budget</textarea></div>
+          <div class="row"><div class="grow"><label for="rcC">Correct answer</label><select id="rcC"><option value="0">Cut scope</option><option value="1" selected>Move the date</option><option value="2">Add budget</option></select></div>
+            <div class="grow"><label for="rcT">Time to answer</label><select id="rcT"><option>20 seconds</option><option>30 seconds</option></select></div></div>
+          <div class="chip accent" style="white-space:normal;border-radius:10px;padding:8px 10px">"Missed that" is always offered. It is counted separately and never as wrong.</div>
+          <div class="row spread"><span class="small muted">Next check allowed in <span class="num">0:00</span> (limit: one per 15 min)</span><button class="primary" type="submit" id="rcGo">Launch</button></div>
+        </form>
+        <div id="rcRes" hidden style="margin-top:14px" class="stack" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="p-states" role="tabpanel" aria-labelledby="t-states" hidden>
+  <div class="lead">
+    <h1>Error and empty states</h1>
+    <p class="muted">Each state says what happened and what to do next, in plain words. None blocks the meeting.</p>
+  </div>
+  <div class="states" id="stateGrid"></div>
+</section>
+
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  var NOW = function () { return Date.now(); };
+  var ic = {
+    min: '<svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg>',
+    present: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
+    pause: '<svg viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>'
+  };
+
+  /* ---------- tabs ---------- */
+  var tabs = [['t-att', 'p-att'], ['t-host', 'p-host'], ['t-states', 'p-states']];
+  function showTab(id) {
+    tabs.forEach(function (p) {
+      var on = p[0] === id; $('#' + p[0]).setAttribute('aria-selected', String(on)); $('#' + p[1]).hidden = !on;
+    });
+    if (id === 't-att') fit();
+    try { history.replaceState(null, '', '#' + id.replace('t-', '')); } catch (e) {}
+  }
+  tabs.forEach(function (p) { $('#' + p[0]).addEventListener('click', function () { showTab(p[0]); }); });
+
+  /* ---------- stage scaling ---------- */
+  var STAGE_W = 1280, STAGE_H = 760, scale = 1;
+  function fit() {
+    var wrap = $('#stageWrap'); var avail = wrap.clientWidth - 28;
+    scale = Math.max(0.5, Math.min(1, avail / STAGE_W));
+    var w = STAGE_W * scale, h = STAGE_H * scale;
+    $('#stage').style.transform = 'scale(' + scale + ')';
+    var s = $('#screen'); s.style.width = w + 'px'; s.style.height = h + 'px';
+    $('#laptop').style.minWidth = (w + 28) + 'px';
+  }
+  window.addEventListener('resize', fit);
+
+  /* ---------- fake meeting ---------- */
+  var people = [['AK','Arjun','#bcd3ff','#123e86'],['PR','Priya (you)','#c9ead2','#1d7a46'],['MT','Meera','#f7dca0','#7a4e00'],['DS','Dev','#ddd5f8','#4a3796'],['RN','Ravi','#ffd5d0','#a3322a'],['SK','Sana','#d4e8f0','#1d5f7a']];
+  function renderMeeting(mode) {
+    var g = $('#mGrid'); g.className = 'm-grid ' + mode;
+    var tiles = people.map(function (p, i) {
+      return '<div class="tile' + (i === 0 ? ' speaking' : '') + '"><div class="av" style="background:' + p[2] + ';color:' + p[3] + '">' + p[0] + '</div><span class="nm">' + p[1] + '</span></div>';
+    });
+    if (mode === 'present') {
+      g.innerHTML = '<div class="slide"><span>Q3 budget</span><b>Revenue is up, hiring is flat</b><div class="bars"><i style="height:90px"></i><i style="height:130px"></i><i style="height:170px"></i><i style="height:150px"></i></div></div>' + tiles.slice(0, 3).join('');
+    } else g.innerHTML = tiles.join('');
+  }
+
+  /* ---------- state ---------- */
+  var S;
+  function fresh() {
+    return { win: 'pill', presenting: false, tab: 'live', focus: false, floor: false, games: false, prompt: null,
+      waiting: 0, skipped: 0, auto: S ? S.auto : true, noteSeen: false, showNote: false, pos: null, collapseAt: 0, autoOpened: false,
+      marks: {}, pred: null, clock: 24 * 60 + 10, view: S ? S.view : 'gallery' };
+  }
+  S = fresh();
+  var words = ['roadmap', 'stakeholders', 'next steps', 'blocker', 'ETA', 'quick win', 'alignment', 'action item', 'budget'];
+
+  /* ---------- window rendering ---------- */
+  function statusText() {
+    if (S.focus) return ['Paused', false];
+    var p = S.prompt;
+    if (p && !p.closed) {
+      var left = Math.max(0, Math.ceil((p.closesAt - NOW()) / 1000));
+      return [(p.type === 'recall' ? 'Quick check ' : 'New prompt ') + '0:' + String(left).padStart(2, '0'), true];
+    }
+    if (S.waiting > 0) return [S.waiting + ' new', true];
+    return ['', false];
+  }
+  function pillHtml() {
+    var st = statusText();
+    return '<div class="pill" data-drag="1">' +
+      '<button class="open-btn" data-act="open" aria-label="Open Engage"><span class="mark" aria-hidden="true"></span><span>Engage</span>' +
+      (st[0] ? '<span class="status ' + (st[1] ? 'attn' : '') + ' num">' + (S.focus ? ic.pause.replace('<svg', '<svg width="12" height="12" style="vertical-align:-2px;margin-right:3px;fill:none;stroke:currentColor;stroke-width:2"') : '') + st[0] + '</span>' : '') +
+      (S.waiting > 0 && !S.focus ? '<span class="dot new" aria-hidden="true"></span>' : '') + '</button>' +
+      '<button class="icon-btn" data-act="present" aria-label="I\'m presenting. Close Engage" title="I\'m presenting">' + ic.present + '</button></div>';
+  }
+  function resultsHtml(p) {
+    var r = p.results;
+    if (p.type === 'recall') {
+      return '<div class="res good"><span>Got it</span><div class="bar"><i style="width:' + r[0] + '%"></i></div><span class="num">' + r[0] + '%</span></div>' +
+        '<div class="res"><span>Other answer</span><div class="bar"><i style="width:' + r[1] + '%"></i></div><span class="num">' + r[1] + '%</span></div>' +
+        '<div class="res miss"><span>Missed that</span><div class="bar"><i style="width:' + r[2] + '%"></i></div><span class="num">' + r[2] + '%</span></div>' +
+        (p.answered === null ? '' : '<p class="small muted">' + (p.answered === 'missed' ? 'You said you missed it. That helps the host.' : p.answered === p.correct ? 'You got it right.' : 'Not this time.') + ' Results are for the whole group.</p>');
+    }
+    return p.options.map(function (o, i) { return '<div class="res"><span>' + o + '</span><div class="bar"><i style="width:' + r[i] + '%"></i></div><span class="num">' + r[i] + '%</span></div>'; }).join('') + '<p class="small muted">Closed. Results are for the whole group.</p>';
+  }
+  function promptHtml() {
+    var p = S.prompt;
+    if (!p) return '<div class="mini"><p class="muted">Nothing to answer right now. Stay with the meeting.</p></div>';
+    if (S.focus && !p.closed) return '<div class="mini"><b>' + p.q + '</b><p class="muted">Paused while the host has Focus on. You can answer when it resumes.</p></div>';
+    var head = '<b>' + p.q + '</b>';
+    if (p.closed) return '<div class="mini">' + head + resultsHtml(p) + '</div>';
+    if (p.answered !== null) return '<div class="mini">' + head + '<span class="chip ok" style="width:fit-content">Answer recorded</span><p class="small muted">Results appear when the host closes this.</p></div>';
+    var total = p.type === 'recall' ? 20000 : 60000;
+    var pct = Math.max(0, Math.min(100, ((p.closesAt - NOW()) / total) * 100));
+    var opts = p.options.map(function (o, i) { return '<button data-ans="' + i + '">' + o + '</button>'; }).join('');
+    if (p.type === 'recall') opts += '<button class="missed" data-ans="missed" title="Not sure? That is useful for the host to know.">Missed that</button>';
+    return '<div class="mini">' + head + '<div class="opts">' + opts + '</div><div class="timer" aria-hidden="true"><i id="timerBar" style="width:' + pct + '%"></i></div></div>';
+  }
+  function liveHtml() {
+    var parts = [];
+    if (S.focus) parts.push('<div class="banner focus" role="status"><b>Focus moment.</b> The host paused prompts and games. Back to the meeting.</div>');
+    if (S.floor && !S.focus) parts.push('<div class="banner" role="status"><b>The host invites your view</b> on the next topic. Add a question below.</div>');
+    parts.push('<div aria-live="polite">' + promptHtml() + '</div>');
+    parts.push('<div class="react">' + [['👍', 'Agree'], ['❓', 'Question'], ['😵', 'Lost me'], ['⏩', 'Too fast'], ['⏭️', 'Move on']].map(function (r) { return '<button data-react="1" aria-label="' + r[1] + '"><span aria-hidden="true">' + r[0] + '</span>' + r[1] + '</button>'; }).join('') + '</div>');
+    parts.push('<div class="row"><input id="askIn" type="text" class="grow" placeholder="Ask the host a question" aria-label="Ask the host a question"><button class="primary" data-act="ask">Ask</button></div>');
+    parts.push('<p class="small muted">3 open questions. See them in your Engage tab.</p>');
+    return parts.join('');
+  }
+  function gamesHtml() {
+    if (S.focus) return '<div class="banner focus"><b>Paused.</b> The host started a Focus moment.</div>';
+    if (!S.games) return '<div class="mini"><p class="muted">Games are closed. The host opens them during breaks.</p></div>';
+    var ok = true;
+    return '<div class="mini"><b>Buzzword bingo</b><div class="bingo">' + words.map(function (w) { return '<button data-bingo="' + w + '" class="' + (S.marks[w] ? 'on' : '') + '" aria-pressed="' + !!S.marks[w] + '">' + w + '</button>'; }).join('') + '</div></div>' +
+      '<div class="mini"><b>Will this meeting run over?</b><div class="row"><button data-pred="yes" class="' + (S.pred === 'yes' ? 'sel' : '') + '">Yes</button><button data-pred="no" class="' + (S.pred === 'no' ? 'sel' : '') + '">No</button></div><p class="small muted">Your points are private.</p></div>';
+  }
+  function cardHtml() {
+    var note = '';
+    if (S.showNote) note = '<div class="firstrun" role="dialog" aria-label="Before you share your screen"><h3>Sharing your whole screen?</h3><p class="small">Everyone would see this window. Share a single window or tab instead, or turn on presenting and Engage closes.</p><div class="row"><button class="primary" data-act="note-ok">Got it</button><button data-act="present">Turn on presenting</button></div></div>';
+    return '<div class="cardwin" style="position:relative">' + note +
+      '<div class="cw-head" data-drag="1"><span class="mark" aria-hidden="true"></span><span class="t">Q3 roadmap review</span>' +
+      '<button class="icon-btn" data-act="present" aria-label="I\'m presenting. Close Engage" title="I\'m presenting">' + ic.present + '</button>' +
+      '<button class="icon-btn" data-act="min" aria-label="Shrink to a pill" title="Shrink">' + ic.min + '</button></div>' +
+      '<div class="cw-tabs" role="tablist"><button role="tab" aria-selected="' + (S.tab === 'live') + '" data-tab="live">Live</button><button role="tab" aria-selected="' + (S.tab === 'play') + '" data-tab="play">Games</button></div>' +
+      '<div class="cw-body">' + (S.tab === 'live' ? liveHtml() : gamesHtml()) + '</div></div>';
+  }
+  var lastKey = '';
+  function renderWin(force) {
+    var host = $('#winHost');
+    var key = JSON.stringify([S.win, S.tab, S.focus, S.floor, S.games, S.waiting, S.showNote, S.prompt && [S.prompt.id, S.prompt.closed, S.prompt.answered], S.marks, S.pred, S.presenting]);
+    if (!force && key === lastKey) return;
+    lastKey = key;
+    var askVal = ($('#askIn') || {}).value || '';
+    if (S.win === 'hidden') {
+      host.innerHTML = '';
+    } else {
+      host.innerHTML = '<div class="win' + '" id="win">' + (S.win === 'pill' ? pillHtml() : cardHtml()) + '</div>';
+      positionWin();
+      var a = $('#askIn'); if (a) a.value = askVal;
+    }
+    $('#stateChip').textContent = 'State: ' + (S.win === 'pill' ? 'Pill' : S.win === 'card' ? 'Card' : 'Presenting (window closed)');
+    $('#swPres').setAttribute('aria-checked', String(S.presenting));
+    $('#focusBtn').textContent = S.focus ? 'Resume everyone' : 'Start Focus moment';
+    $('#presInfo').textContent = S.presenting ? 'Presenting is on. Engage is closed on your screen. ' + S.skipped + ' prompt' + (S.skipped === 1 ? '' : 's') + ' skipped, none queued.' : 'Presenting is off.';
+  }
+  function positionWin() {
+    var w = $('#win'); if (!w) return;
+    if (S.pos) { w.style.left = S.pos.x + 'px'; w.style.top = S.pos.y + 'px'; w.style.right = 'auto'; w.style.bottom = 'auto'; }
+  }
+
+  /* ---------- actions ---------- */
+  function openCard(auto) {
+    S.win = 'card'; S.waiting = 0; S.autoOpened = !!auto;
+    if (!auto && !S.noteSeen) S.showNote = true;
+    renderWin(true);
+  }
+  function minimise() { S.win = 'pill'; S.autoOpened = false; renderWin(true); }
+  function setPresenting(on) {
+    S.presenting = on;
+    if (on) { S.win = 'hidden'; S.waiting = 0; S.showNote = false; S.noteSeen = true; }
+    else S.win = 'pill';
+    renderWin(true);
+  }
+  function launch(type) {
+    if (S.presenting) { S.skipped++; renderWin(true); return; }
+    var id = NOW();
+    if (type === 'recall') S.prompt = { id: id, type: 'recall', q: 'Which budget option did we just choose?', options: ['Cut scope', 'Move the date', 'Add budget'], correct: 1, closesAt: id + 20000, closed: false, answered: null, results: [62, 15, 23] };
+    else S.prompt = { id: id, type: 'poll', q: 'Should we ship on Friday?', options: ['Yes, ship it', 'No, wait a week', 'Need more info'], closesAt: id + 45000, closed: false, answered: null, results: [46, 31, 23] };
+    if (S.win === 'card') { S.tab = 'live'; }
+    else if (type === 'recall' && S.auto && !S.focus) { openCard(true); return; }
+    else S.waiting++;
+    renderWin(true);
+  }
+  function closePrompt() {
+    var p = S.prompt; if (!p || p.closed) return;
+    p.closed = true;
+    if (S.autoOpened && S.win === 'card') S.collapseAt = NOW() + 6000;
+    renderWin(true);
+  }
+  function sim(what) {
+    if (what === 'poll' || what === 'recall') launch(what);
+    else if (what === 'floor') { if (S.presenting) S.skipped++; else { S.floor = true; if (S.win === 'pill') S.waiting++; } renderWin(true); }
+    else if (what === 'games') { if (S.presenting) S.skipped++; else { S.games = true; if (S.win === 'pill') S.waiting++; } renderWin(true); }
+    else if (what === 'focus') { S.focus = !S.focus; renderWin(true); }
+    else if (what === 'reset') { var keep = { auto: S.auto, view: S.view }; S = fresh(); S.auto = keep.auto; S.view = keep.view; lastKey = ''; renderWin(true); }
+  }
+
+  /* ---------- events on the stage ---------- */
+  var drag = null;
+  $('#winHost').addEventListener('pointerdown', function (e) {
+    var h = e.target.closest('[data-drag]'); if (!h || e.target.closest('button:not(.open-btn)')) return;
+    var w = $('#win'); var sr = $('#stage').getBoundingClientRect(); var wr = w.getBoundingClientRect();
+    drag = { sx: e.clientX, sy: e.clientY, ox: (wr.left - sr.left) / scale, oy: (wr.top - sr.top) / scale, moved: false, w: wr.width / scale, hgt: wr.height / scale };
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var dx = (e.clientX - drag.sx) / scale, dy = (e.clientY - drag.sy) / scale;
+    if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
+    drag.moved = true;
+    var x = Math.max(8, Math.min(STAGE_W - drag.w - 8, drag.ox + dx)); var y = Math.max(44, Math.min(STAGE_H - drag.hgt - 8, drag.oy + dy));
+    S.pos = { x: x, y: y }; positionWin();
+  });
+  window.addEventListener('pointerup', function () { var d = drag; drag = null; if (d && d.moved) { window.__justDragged = true; setTimeout(function () { window.__justDragged = false; }, 0); } });
+  $('#winHost').addEventListener('click', function (e) {
+    if (window.__justDragged) return;
+    var b = e.target.closest('button'); if (!b) return;
+    var act = b.dataset.act;
+    if (act === 'open') openCard(false);
+    else if (act === 'min') minimise();
+    else if (act === 'present') setPresenting(true);
+    else if (act === 'note-ok') { S.showNote = false; S.noteSeen = true; renderWin(true); }
+    else if (act === 'ask') { var i = $('#askIn'); if (i && i.value.trim()) { i.value = ''; toast('Question sent'); } }
+    else if (b.dataset.tab) { S.tab = b.dataset.tab; renderWin(true); }
+    else if (b.dataset.ans !== undefined) {
+      var v = b.dataset.ans === 'missed' ? 'missed' : Number(b.dataset.ans); S.prompt.answered = v; renderWin(true);
+    } else if (b.dataset.react) { b.classList.add('sel'); setTimeout(function () { b.classList.remove('sel'); }, 600); }
+    else if (b.dataset.bingo) { S.marks[b.dataset.bingo] = !S.marks[b.dataset.bingo]; renderWin(true); }
+    else if (b.dataset.pred) { S.pred = b.dataset.pred; renderWin(true); }
+  });
+  var toastEl = null;
+  function toast(msg) {
+    if (toastEl) toastEl.remove();
+    toastEl = document.createElement('div'); toastEl.className = 'toast'; toastEl.setAttribute('role', 'status'); toastEl.textContent = msg;
+    toastEl.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:30';
+    document.body.appendChild(toastEl); setTimeout(function () { if (toastEl) toastEl.remove(); }, 2000);
+  }
+
+  /* ---------- side panel events ---------- */
+  $$('[data-sim]').forEach(function (b) { b.addEventListener('click', function () { sim(b.dataset.sim); }); });
+  $('#swAuto').addEventListener('click', function () { S.auto = !S.auto; this.setAttribute('aria-checked', String(S.auto)); });
+  $('#swPres').addEventListener('click', function () { setPresenting(!S.presenting); });
+  $('#replayNote').addEventListener('click', function () { if (S.presenting) setPresenting(false); S.noteSeen = false; openCard(false); });
+  function setView(v) { S.view = v; $('#vGal').setAttribute('aria-pressed', String(v === 'gallery')); $('#vPres').setAttribute('aria-pressed', String(v === 'present')); renderMeeting(v === 'present' ? 'present' : 'gallery'); }
+  $('#vGal').addEventListener('click', function () { setView('gallery'); });
+  $('#vPres').addEventListener('click', function () { setView('present'); });
+
+  /* ---------- timers ---------- */
+  setInterval(function () {
+    S.clock += 1; $('#mClock').textContent = Math.floor(S.clock / 60) + ':' + String(S.clock % 60).padStart(2, '0');
+    var p = S.prompt;
+    if (p && !p.closed && NOW() >= p.closesAt) closePrompt();
+    if (S.collapseAt && NOW() >= S.collapseAt) { S.collapseAt = 0; if (S.win === 'card' && S.autoOpened) minimise(); }
+    if (p && !p.closed && !S.focus) {
+      var total = p.type === 'recall' ? 20000 : 45000;
+      var bar = $('#timerBar'); if (bar) bar.style.width = Math.max(0, ((p.closesAt - NOW()) / total) * 100) + '%';
+      if (S.win === 'pill') { lastKey = ''; renderWin(true); }
+    }
+  }, 1000);
+
+  /* ---------- host tab ---------- */
+  var segs = [
+    { n: 'Intro', a: 0, b: 8, avg: 86, low: 78, notes: '1 question, 12 reactions. Everyone settled in quickly.' },
+    { n: 'Roadmap', a: 8, b: 24, avg: 91, low: 82, notes: 'Poll: 46% ship Friday. 3 questions, 2 answered.' },
+    { n: 'Budget', a: 24, b: 40, avg: 41, low: 6, notes: 'Lowest 6% at 37 min. 3 "Lost me" and 2 "Too fast" reactions. A pulse check at 41 min lifted it to 64%.' },
+    { n: 'Risks', a: 40, b: 55, avg: 68, low: 51, notes: 'Recovered after the pulse check. 2 questions still open.' }
+  ];
+  function series() {
+    var out = []; for (var m = 0; m <= 55; m++) {
+      var v;
+      if (m < 2) v = 20 + m * 35; else if (m < 28) v = 88 + Math.round(5 * Math.sin(m / 2.1)); else if (m < 31) v = 70 - (m - 28) * 14; else if (m < 38) v = 30 - (m - 31) * 3.5; else if (m < 41) v = 6 + (m - 38) * 2; else if (m < 43) v = 40 + (m - 41) * 12; else v = 66 + Math.round(5 * Math.sin(m / 2.4));
+      out.push(Math.max(2, Math.min(97, v)));
+    } return out;
+  }
+  var sel = 2;
+  function drawChart() {
+    var W = 760, H = 230, L = 34, R = 10, T = 30, B = 26, data = series();
+    var x = function (m) { return L + (m / 55) * (W - L - R); }; var y = function (p) { return T + (1 - p / 100) * (H - T - B); };
+    var out = [];
+    segs.forEach(function (s, i) {
+      out.push('<rect x="' + x(s.a) + '" y="' + T + '" width="' + (x(s.b) - x(s.a)) + '" height="' + (H - T - B) + '" fill="' + (i === sel ? 'var(--accent-soft)' : 'var(--surface-2)') + '" opacity="' + (i === sel ? 1 : .55) + '" data-seg="' + i + '" style="cursor:pointer"/>');
+      out.push('<text x="' + (x(s.a) + 8) + '" y="' + (T - 10) + '" style="font-weight:' + (i === sel ? 700 : 500) + ';fill:' + (i === sel ? 'var(--accent-text)' : 'var(--muted)') + '">' + s.n + ' · ' + s.a + '–' + s.b + ' min</text>');
+    });
+    [0, 50, 100].forEach(function (p) { out.push('<line x1="' + L + '" x2="' + (W - R) + '" y1="' + y(p) + '" y2="' + y(p) + '" stroke="var(--border)" stroke-dasharray="3 4"/><text x="' + (L - 6) + '" y="' + (y(p) + 4) + '" text-anchor="end">' + p + '%</text>'); });
+    out.push('<rect x="' + x(30) + '" y="' + (T + 2) + '" width="' + (x(40) - x(30)) + '" height="' + (H - T - B - 4) + '" rx="6" fill="var(--warn-soft)" opacity=".7" pointer-events="none"/>');
+    out.push('<text x="' + (x(30) + 6) + '" y="' + (T + 16) + '" style="fill:var(--warn);font-weight:600" pointer-events="none">Dip at 30 min</text>');
+    out.push('<line x1="' + x(41) + '" x2="' + x(41) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--accent-text)" stroke-dasharray="3 3"/><text x="' + (x(41) + 5) + '" y="' + (H - B - 8) + '">Pulse check</text>');
+    var pts = data.map(function (v, m) { return x(m).toFixed(1) + ',' + y(v).toFixed(1); });
+    out.push('<polygon points="' + x(0) + ',' + y(0) + ' ' + pts.join(' ') + ' ' + x(55) + ',' + y(0) + '" fill="var(--accent)" opacity=".12" pointer-events="none"/>');
+    out.push('<polyline points="' + pts.join(' ') + '" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" pointer-events="none"/>');
+    out.push('<circle cx="' + x(55) + '" cy="' + y(data[55]) + '" r="4" fill="var(--accent)" pointer-events="none"/>');
+    [0, 10, 20, 30, 40, 50].forEach(function (m) { out.push('<text x="' + x(m) + '" y="' + (H - 8) + '" text-anchor="middle">' + m + '</text>'); });
+    out.push('<text x="' + (W - R) + '" y="' + (H - 8) + '" text-anchor="end">min</text>');
+    $('#hChart').innerHTML = out.join('');
+    var s = segs[sel];
+    $('#segDetail').innerHTML = '<div class="row spread"><b>' + s.n + ' (' + s.a + ' to ' + s.b + ' min)</b><span class="chip num">Average ' + s.avg + '%</span></div><p class="small">Lowest point ' + s.low + '%. ' + s.notes + '</p><p class="small muted">Click a segment in the chart to compare.</p>';
+  }
+  $('#hChart').addEventListener('click', function (e) { var t = e.target.closest('[data-seg]'); if (t) { sel = Number(t.dataset.seg); drawChart(); } });
+
+  var rcTimer = null;
+  function launchRecall() {
+    var box = $('#rcRes'); box.hidden = false; var q = $('#rcQ').value.trim() || 'Which budget option did we just choose?';
+    var opts = $('#rcO').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 6);
+    var cor = Number($('#rcC').value); var final = { n: 13, good: 8, other: 2, miss: 3 }; var step = 0, steps = 8;
+    $('#rcGo').disabled = true; clearInterval(rcTimer);
+    function paint(frac, done) {
+      var n = Math.round(final.n * frac), g = Math.round(final.good * frac), o = Math.round(final.other * frac), m = Math.round(final.miss * frac);
+      var pc = function (v) { return n ? Math.round(v / n * 100) : 0; };
+      box.innerHTML = '<div class="row spread"><b>' + q.replace(/</g, '&lt;') + '</b><span class="chip ' + (done ? '' : 'ok') + '">' + (done ? 'Closed' : 'Open') + '</span></div>' +
+        '<p class="small muted num">' + n + ' of 14 answered' + (done ? '' : ' · closes automatically') + '</p>' +
+        '<div class="res good"><span>' + (opts[cor] ? 'Got it: ' + opts[cor].replace(/</g, '&lt;') : 'Got it') + '</span><div class="bar"><i style="width:' + pc(g) + '%"></i></div><span class="num">' + pc(g) + '%</span></div>' +
+        '<div class="res"><span>Other answer</span><div class="bar"><i style="width:' + pc(o) + '%"></i></div><span class="num">' + pc(o) + '%</span></div>' +
+        '<div class="res miss"><span>Missed that</span><div class="bar"><i style="width:' + pc(m) + '%"></i></div><span class="num">' + pc(m) + '%</span></div>' +
+        (done ? '<div class="seg-detail"><b>Reading the result</b><p class="small">About one in four missed it. Consider repeating the key point in one sentence before moving on.</p></div>' : '');
+    }
+    paint(0.05, false);
+    rcTimer = setInterval(function () { step++; paint(step / steps, step >= steps); if (step >= steps) { clearInterval(rcTimer); $('#rcGo').disabled = false; } }, 650);
+  }
+  $('#rcForm').addEventListener('submit', function (e) { e.preventDefault(); launchRecall(); });
+  $('#hbRecall').addEventListener('click', function () { $('#rcForm').scrollIntoView({ block: 'center', behavior: 'smooth' }); launchRecall(); });
+  $('#rcO').addEventListener('input', function () {
+    var o = this.value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean).slice(0, 6); var c = $('#rcC'); var cur = c.value;
+    c.innerHTML = o.map(function (t, i) { return '<option value="' + i + '">' + t.replace(/</g, '&lt;') + '</option>'; }).join(''); if (cur < o.length) c.value = cur;
+  });
+  $('#showCoach').addEventListener('click', function () {
+    var out = $('#coachOut'); out.hidden = false; this.disabled = true;
+    out.innerHTML = '<div class="coach" style="margin-top:14px"><div class="row spread"><h2>Your coach summary</h2><span class="chip">Only you can see this</span></div>' +
+      '<div><div class="insight"><div class="ic">1</div><div><b>Engagement dipped during Budget.</b><p class="small muted">It fell from 93% to 6% between minutes 30 and 38. The pulse check at minute 41 brought it back to 64%.</p></div></div>' +
+      '<div class="insight"><div class="ic">2</div><div><b>About one in four missed the budget decision.</b><p class="small muted">In the recall check, 62% got it and 23% chose "Missed that". A one-line recap would help next time.</p></div></div>' +
+      '<div class="insight"><div class="ic">3</div><div><b>Three questions are still open.</b><p class="small muted">Top question: "Who owns the billing migration?" with 5 votes. Consider replying in the meeting chat.</p></div></div></div>' +
+      '<div class="seg-detail"><b>Try this next time</b><p class="small">Move the budget discussion earlier, or schedule a short break around minute 30.</p></div>' +
+      '<div class="row"><button id="copyCoach">Copy summary</button><span class="small muted">Comparison with your last five meetings arrives once history is saved.</span></div></div>';
+    $('#copyCoach').addEventListener('click', function () {
+      var t = 'Engagement dipped during Budget (93% to 6%). About one in four missed the budget decision. Three questions are still open.';
+      var done = function () { toast('Summary copied'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { toast('Copy failed. Select the text and copy it.'); }); else toast('Copy failed. Select the text and copy it.');
+    });
+  });
+
+  /* ---------- states gallery ---------- */
+  var cards = [
+    ['Connection lost', 'The network drops during the meeting', '<div class="banner" style="background:var(--warn-soft);color:var(--warn)" role="status">Connection lost. Reconnecting. Your answers so far are saved.</div>'],
+    ['Back online', 'The connection returns', '<div class="toast">Reconnected. You are back in the meeting.</div>'],
+    ['Meeting not found', 'The code is wrong or the meeting expired', '<div class="stack"><b>We could not find that meeting</b><p class="small muted">Check the code or link with the host. Codes have six letters and digits.</p><div class="row"><input type="text" placeholder="ABC123" aria-label="Meeting code"><button>Try again</button></div></div>'],
+    ['Meeting has ended', 'Someone opens an old link', '<div class="stack"><b>This meeting has ended</b><p class="small muted">If you were in it, your recap is in the Engage tab you used. Ask the host for the summary.</p></div>'],
+    ['Meeting is full', 'The 500 person limit is reached', '<div class="stack"><b>This meeting is full</b><p class="small muted">Ask the host to make room. You can stay on this page and try again.</p><button>Try again</button></div>'],
+    ['Name needed', 'Joining without a name', '<div class="stack"><input type="text" aria-label="Your first name" placeholder="Your first name"><p class="err">Enter your first name, or choose to join anonymously.</p></div>'],
+    ['No questions yet', 'Questions list is empty', '<p class="muted small">No questions yet. Be the first. Others can upvote yours.</p>'],
+    ['Nothing to answer', 'No prompt is open', '<div class="mini"><p class="muted">Nothing to answer right now. Stay with the meeting.</p></div>'],
+    ['Prompt already closed', 'You answer just after the timer ends', '<div class="stack"><div class="toast">That prompt closed. Results are in your Live tab.</div></div>'],
+    ['Focus moment', 'The host paused everything', '<div class="banner focus"><b>Focus moment.</b> The host paused prompts and games. Back to the meeting.</div>'],
+    ['Waiting for people', 'Host console before anyone joins', '<div class="stack"><b>Waiting for the first person to join</b><p class="small muted">Paste the link in the meeting chat. The room pulse starts when someone joins.</p></div>'],
+    ['Copy failed', 'The browser blocks the clipboard', '<div class="toast">Copy failed. Select the text and copy it.</div>'],
+    ['Browser without mini window', 'Safari or Firefox opens Engage', '<div class="stack"><div class="banner">The floating window needs Chrome or Edge. Keep this window beside the meeting. The tab title shows when something is waiting.</div></div>'],
+    ['Presenting is on', 'Shown in the Engage tab', '<div class="stack"><div class="row spread"><b>I\'m presenting</b><span class="chip ok">On</span></div><p class="small muted">Engage is closed on your screen. Nothing shows or queues. 2 prompts skipped.</p><button>Turn off</button></div>'],
+    ['Slow connection', 'Updates arrive late', '<div class="banner" style="background:var(--warn-soft);color:var(--warn)" role="status">Updates are slow. You can keep answering. They will arrive shortly.</div>']
+  ];
+  $('#stateGrid').innerHTML = cards.map(function (c) { return '<div class="card sc"><h2>' + c[0] + '</h2><p class="when">' + c[1] + '</p><div class="demo">' + c[2] + '</div></div>'; }).join('');
+
+  /* ---------- init ---------- */
+  renderMeeting('gallery'); drawChart(); fit(); renderWin(true);
+  var h = (location.hash || '').replace('#', ''); if (h === 'host' || h === 'states') showTab('t-' + h);
+})();
+</script>
