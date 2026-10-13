@@ -2,6 +2,8 @@
 
 Engage is a meeting engagement layer that runs beside any video meeting (Google Meet, Zoom, Teams, Zoho). It is not a video platform. The host creates a link, pastes it into the meeting chat, and attendees open it in a second browser window. No sign-up.
 
+**New here? Read `docs/START-HERE.md`.** It lists what to read in order, every file, how to deploy, and how to check it works.
+
 This repo holds the Phase 1 companion app. See `docs/phase1-spec.md` and `docs/product-plan.md` for the product thinking.
 
 ## Run it

@@ -12,7 +12,8 @@
     "dev": "node --watch server/index.js",
     "test": "node --test \"test/*.test.js\"",
     "lint": "eslint .",
-    "check": "npm run lint && npm test"
+    "check": "npm run lint && npm test",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "ws": "^8.22.0"
