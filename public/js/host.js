@@ -2,11 +2,17 @@ import { $, $$, codeFromPath, connect, esc, formatClock, REACTION_LABELS, storag
 import { renderChart } from './chart.js';
 
 const code = codeFromPath();
+const hashToken = new URLSearchParams(location.hash.slice(1)).get('t');
+if (hashToken) {
+  storage.set(`engage.host.${code}`, hashToken);
+  history.replaceState(null, '', location.pathname);
+}
 const hostToken = storage.get(`engage.host.${code}`);
 
 let state = null;
 let momentKind = 'poll';
-let dirty = { bingo: false, prediction: false };
+let dirty = { bingo: false, prediction: false, agenda: false };
+let overrideArmed = false;
 
 const live = $('#live');
 const ended = $('#ended');
@@ -66,6 +72,7 @@ function render() {
   renderReactions();
   renderGames();
   renderQuiet();
+  renderAgenda();
 }
 
 function renderTop() {
@@ -91,7 +98,8 @@ function renderBanners() {
   }
   for (const suggestion of state.suggestions) {
     const buttons = suggestion.actions.map((action) => {
-      if (action === 'pulse') return '<button data-quick="pulse" class="primary">Run a pulse check</button>';
+      if (action === 'recall') return '<button data-quick="recall" class="primary">Run a recall check</button>';
+      if (action === 'pulse') return '<button data-quick="pulse">Run a pulse check</button>';
       if (action === 'floor') return '<button data-action="floor">Open the floor</button>';
       if (action === 'break') return '<button data-quick="break">Start a break block</button>';
       return '';
@@ -121,6 +129,7 @@ function renderChartCard() {
     events: state.events,
     startedAt: state.startedAt,
     now: socket.now(),
+    segments: state.agenda.segments,
   });
 }
 
@@ -138,6 +147,13 @@ function resultsHtml(moment) {
       const right = moment.type === 'quiz' && moment.correct === i;
       return `<div class="bar-row ${right ? 'right' : ''}"><span>${esc(option)}${right ? ' ✓' : ''}</span><div class="bar"><span style="width:${pct}%"></span></div><span class="num">${r.counts[i]}</span></div>`;
     }).join('');
+  }
+  if (moment.type === 'recall') {
+    const row = (label, n, cls = '') => {
+      const pct = r.total ? Math.round((n / r.total) * 100) : 0;
+      return `<div class="bar-row ${cls}"><span>${label}</span><div class="bar"><span style="width:${pct}%"></span></div><span class="num">${n}</span></div>`;
+    };
+    return moment.options.map((o, i) => row(`${esc(o)}${moment.correct === i ? ' ✓' : ''}`, r.counts[i], moment.correct === i ? 'right' : '')).join('') + row('Missed that', r.missed, 'miss');
   }
   if (moment.type === 'pulse') {
     const max = Math.max(1, ...r.counts);
@@ -220,6 +236,15 @@ function renderGames() {
   if (!dirty.bingo && document.activeElement !== $('#b-words')) $('#b-words').value = state.bingoWords.join('\n');
 }
 
+function renderAgenda() {
+  if (!dirty.agenda && document.activeElement !== $('#ag-text')) $('#ag-text').value = state.agenda.text;
+  const segs = state.agenda.segments;
+  $('#ag-list').innerHTML = segs.length
+    ? segs.map((s) => `<div class="row spread"><span><b>${esc(s.title)}</b> <span class="muted num">${s.startMin} to ${s.endMin} min</span></span><span class="num muted">${s.avg === null ? 'no data yet' : `${s.avg}% avg`}</span></div>`).join('')
+    : '<p class="muted">No agenda yet. Add topics to see engagement by topic.</p>';
+  syncMomentForm();
+}
+
 function renderQuiet() {
   if (document.activeElement !== $('#quiet-on')) $('#quiet-on').checked = state.quiet.on;
   if (document.activeElement !== $('#quiet-every')) $('#quiet-every').value = String(state.quiet.everyMin);
@@ -243,6 +268,13 @@ const summaryText = (s) => {
   for (const m of s.moments) {
     lines.push(`- ${m.prompt} (${m.type}, ${m.results.total} answered)`);
   }
+  if (s.agenda.length) {
+    lines.push('', '## Engagement by topic');
+    for (const a of s.agenda) lines.push(`- ${a.title} (${a.startMin} to ${a.endMin} min): ${a.avg === null ? 'no data' : `${a.avg}% average, lowest ${a.low}%`}`);
+  }
+  lines.push('', '## Coach summary (host only)');
+  for (const i of s.coach.insights) lines.push(`- ${i.title} ${i.detail}`);
+  lines.push(`- Next time: ${s.coach.next}`);
   lines.push('', '## Top questions');
   for (const q of s.topQuestions) lines.push(`- ${q.text} (${q.votes} votes${q.answered ? ', answered' : ''})`);
   return lines.join('\n');
@@ -268,25 +300,35 @@ function renderSummary() {
   const reactions = Object.entries(REACTION_LABELS).map(([kind, { emoji, label }]) =>
     `<div class="reaction-tile"><b class="num">${s.reactionTotals[kind] ?? 0}</b>${emoji} ${esc(label)}</div>`).join('');
 
+  const coach = `<section class="card"><div class="card-head"><h2>Your coach summary</h2><span class="chip">Only you can see this</span></div>${
+    s.coach.insights.length ? s.coach.insights.map((i, n) => `<div class="q" style="grid-template-columns: 28px 1fr; margin-top: 8px"><b class="chip accent" style="justify-content:center">${n + 1}</b><div><div><b>${esc(i.title)}</b></div><div class="muted small">${esc(i.detail)}</div></div></div>`).join('') : '<p class="muted" style="margin-top: 8px">Nothing needs attention. Engagement held up well.</p>'}<div class="tile" style="margin-top: 10px"><div class="label">Try this next time</div><div>${esc(s.coach.next)}</div></div></section>`;
+  const agendaCard = s.agenda.length ? `<section class="card"><h2>Engagement by topic</h2>${s.agenda.map((a) => `<div class="bar-row" style="grid-template-columns: minmax(80px, 34%) 1fr 56px"><span>${esc(a.title)}</span><div class="bar"><span style="width:${a.avg ?? 0}%"></span></div><span class="num">${a.avg === null ? '–' : a.avg + '%'}</span></div>`).join('')}</section>` : '';
+
   ended.innerHTML = `
     <div class="row spread"><div><h1>Meeting summary</h1><p class="muted">${esc(state.title)}</p></div>
       <div class="row"><button id="copy-summary">Copy as text</button><button id="download-summary" class="primary">Download .md</button><a href="/"><button>New meeting</button></a></div></div>
     <div class="summary-grid">${tiles}</div>
+    ${coach}
     <section class="card"><div class="card-head"><h2>Engagement over the meeting</h2></div><svg id="summary-chart" class="chart" role="img" aria-label="Engagement over time"></svg></section>
     <div class="host-grid">
       <section class="card"><h2>Moments</h2>${moments}</section>
       <div class="stack">
+        ${agendaCard}
         <section class="card"><h2>Top questions</h2><div class="q-list">${questions}</div><p class="small muted" style="margin-top: 8px">${s.unanswered} still open</p></section>
         <section class="card"><h2>Reactions</h2><div class="reaction-grid">${reactions}</div></section>
         <section class="card"><h2>Prediction</h2><p>${esc(s.prediction.question)}</p><p class="muted small">Yes ${s.prediction.yes} · No ${s.prediction.no}${s.prediction.result ? ` · Result: ${s.prediction.result === 'yes' ? 'Yes' : 'No'}` : ''}</p></section>
       </div>
     </div>`;
+  fetch('/api/config').then((r) => r.json()).then((c) => {
+    if (c.surveyUrl && !$('#survey-line')) ended.insertAdjacentHTML('beforeend', `<p id="survey-line" class="muted">Help us improve Engage. <a href="${esc(c.surveyUrl)}" target="_blank" rel="noopener noreferrer">Share quick feedback</a>.</p>`);
+  }).catch(() => {});
   renderChart($('#summary-chart'), {
     series: s.series,
     dips: s.dips,
     events: s.events,
     startedAt: state.startedAt,
     now: state.startedAt + s.durationMs,
+    segments: s.agenda,
   });
   $('#copy-summary').onclick = () => copy(summaryText(s), 'Summary copied');
   $('#download-summary').onclick = () => {
@@ -310,6 +352,7 @@ async function copy(text, message) {
 
 $('#copy-link').addEventListener('click', () => copy(link(), 'Link copied'));
 $('#copy-message').addEventListener('click', () => copy(chatMessage(), 'Chat message copied'));
+$('#copy-host-link').addEventListener('click', () => copy(`${location.origin}/h/${code}#t=${hostToken}`, 'Private host link copied. Anyone with it can control the meeting.'));
 $('#clock-reset').addEventListener('click', () => {
   if (confirm('Restart the meeting clock and the engagement chart from now?')) act({ t: 'resetClock' });
 });
@@ -326,6 +369,10 @@ document.addEventListener('click', (event) => {
   else if (action === 'dismissMoment') act({ t: 'dismissMoment' });
   else if (action === 'end') {
     if (confirm('End the meeting for everyone and build the summary?')) act({ t: 'end' });
+  } else if (quick === 'recall') {
+    $('#moment-tabs [data-kind="recall"]').click();
+    $('#moment-form').scrollIntoView({ block: 'center', behavior: 'smooth' });
+    $('#f-prompt').focus();
   } else if (quick === 'pulse') {
     act({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
   } else if (quick === 'break') {
@@ -342,17 +389,23 @@ document.addEventListener('click', (event) => {
 const optionLines = () => $('#f-options').value.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 6);
 
 function syncMomentForm() {
-  const needsOptions = momentKind === 'poll' || momentKind === 'quiz';
+  const needsOptions = momentKind === 'poll' || momentKind === 'recall';
   $('#f-options-wrap').hidden = !needsOptions;
-  $('#f-correct-wrap').hidden = momentKind !== 'quiz';
+  $('#f-correct-wrap').hidden = momentKind !== 'recall';
+  const note = $('#f-recall-note');
+  note.hidden = momentKind !== 'recall';
+  if (momentKind === 'recall' && state) {
+    const wait = state.recallNextAt - socket.now();
+    note.textContent = 'Includes "Missed that", counted separately from wrong answers. ' + (wait > 0 ? `Next check available in ${formatClock(wait)}. Press Launch twice to override.` : 'One check per 15 minutes.');
+  }
   const placeholders = {
     poll: 'Should we ship on Friday?',
     pulse: 'How is this meeting going for you?',
-    quiz: 'Which option did we just choose?',
+    recall: 'Which option did we just choose?',
     wordcloud: 'One word for how you feel about the plan',
   };
   $('#f-prompt').placeholder = placeholders[momentKind];
-  if (momentKind === 'quiz') {
+  if (momentKind === 'recall') {
     const options = optionLines();
     const current = $('#f-correct').value;
     $('#f-correct').innerHTML = options.map((o, i) => `<option value="${i}">${esc(o)}</option>`).join('');
@@ -364,6 +417,9 @@ $('#moment-tabs').addEventListener('click', (event) => {
   const tab = event.target.closest('[data-kind]');
   if (!tab) return;
   momentKind = tab.dataset.kind;
+  overrideArmed = false;
+  $('#moment-form button[type="submit"]').textContent = 'Launch';
+  $('#f-duration').value = momentKind === 'recall' ? '20' : '60';
   for (const t of $$('#moment-tabs button')) t.setAttribute('aria-selected', String(t === tab));
   syncMomentForm();
 });
@@ -374,24 +430,43 @@ $('#moment-form').addEventListener('submit', (event) => {
   const error = $('#f-error');
   const prompt = $('#f-prompt').value.trim() || $('#f-prompt').placeholder;
   const options = optionLines();
-  if ((momentKind === 'poll' || momentKind === 'quiz') && options.length < 2) {
+  if ((momentKind === 'poll' || momentKind === 'recall') && options.length < 2) {
     error.textContent = 'Add at least two options, one per line.';
     error.hidden = false;
     return;
   }
   error.hidden = true;
+  const capped = momentKind === 'recall' && state.recallNextAt > socket.now();
+  if (capped && !overrideArmed) {
+    overrideArmed = true;
+    error.textContent = `The next recall check is available in ${formatClock(state.recallNextAt - socket.now())}. Press Launch again to run it now.`;
+    error.hidden = false;
+    $('#moment-form button[type="submit"]').textContent = 'Launch anyway';
+    return;
+  }
+  $('#moment-form button[type="submit"]').textContent = 'Launch';
   act({
     t: 'launchMoment',
+    override: overrideArmed,
     type: momentKind,
     prompt,
     options,
-    correct: momentKind === 'quiz' ? Number($('#f-correct').value) : null,
+    correct: momentKind === 'recall' ? Number($('#f-correct').value) : null,
     durationSec: Number($('#f-duration').value),
   });
+  overrideArmed = false;
   $('#f-prompt').value = '';
   $('#f-options').value = '';
   syncMomentForm();
 });
+
+$('#agenda-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  dirty.agenda = false;
+  act({ t: 'setAgenda', text: $('#ag-text').value });
+  toast('Agenda saved');
+});
+$('#ag-text').addEventListener('input', () => { dirty.agenda = true; });
 
 $('#window-form').addEventListener('submit', (event) => {
   event.preventDefault();

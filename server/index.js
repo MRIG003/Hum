@@ -28,6 +28,14 @@ const SECURITY_HEADERS = {
   'Referrer-Policy': 'no-referrer',
 };
 
+const clientIp = (req) => {
+  if (process.env.TRUST_PROXY) {
+    const forwarded = req.headers['x-forwarded-for'];
+    if (typeof forwarded === 'string' && forwarded) return forwarded.split(',')[0].trim();
+  }
+  return req.socket.remoteAddress ?? 'unknown';
+};
+
 export const createApp = ({ clock = Date.now } = {}) => {
   const meetings = new Map();
   const sockets = new Map(); // ws -> { code, role, pid, windowStart, count }
@@ -78,6 +86,7 @@ export const createApp = ({ clock = Date.now } = {}) => {
     removeQuestion: (m, msg) => m.removeQuestion(msg.id),
     quiet: (m, msg) => m.setQuiet(msg.on, msg.everyMin),
     floor: (m) => m.openTheFloor(),
+    setAgenda: (m, msg) => m.setAgenda(msg.text),
     resetClock: (m) => m.resetClock(),
     removeParticipant: (m, msg) => m.removeParticipant(msg.pid),
     end: (m) => m.end(),
@@ -257,9 +266,12 @@ export const createApp = ({ clock = Date.now } = {}) => {
     const { pathname } = url;
     try {
       if (req.method === 'GET' && pathname === '/healthz') return json(res, 200, { ok: true });
+      if (req.method === 'GET' && pathname === '/api/config') {
+        return json(res, 200, { surveyUrl: process.env.ENGAGE_SURVEY_URL || null });
+      }
 
       if (req.method === 'POST' && pathname === '/api/meetings') {
-        if (!allowCreate(req.socket.remoteAddress ?? 'unknown')) {
+        if (!allowCreate(clientIp(req))) {
           return json(res, 429, { error: 'Too many meetings created. Try again later.' });
         }
         const body = await readJson(req);
@@ -324,6 +336,10 @@ export const createApp = ({ clock = Date.now } = {}) => {
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { server } = createApp();
+  const { server, close } = createApp();
   server.listen(PORT, () => console.log(`Engage running on http://localhost:${PORT}`));
+  // On deploys, close sockets so clients reconnect to the new instance.
+  const shutdown = () => close().then(() => process.exit(0));
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }

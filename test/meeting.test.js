@@ -269,3 +269,141 @@ test('attendee snapshots never include other people\'s points or choices', () =>
   assert.equal(view.prediction.mine, null);
   assert.deepEqual(view.card.marks, []);
 });
+
+// ---- recall check, agenda, coach -------------------------------------------
+
+const launchRecall = (meeting, extra = {}) =>
+  meeting.launchMoment({
+    type: 'recall',
+    prompt: 'Which option did we choose?',
+    options: ['Cut scope', 'Move the date', 'Add budget'],
+    correct: 1,
+    ...extra,
+  });
+
+test('recall check: missed is counted separately and correct answers earn points', () => {
+  const { meeting } = makeMeeting();
+  const [a, b, c, d] = ['A', 'B', 'C', 'D'].map((n) => join(meeting, n));
+  launchRecall(meeting);
+  const id = meeting.moment.id;
+  meeting.respond(a.id, id, 1);
+  meeting.respond(b.id, id, 0);
+  meeting.respond(c.id, id, 'missed');
+  assert.throws(() => meeting.respond(c.id, id, 1), ActionError);
+  assert.equal(meeting.hostSnapshot().moment.results.missed, 1);
+  meeting.closeMoment();
+  assert.deepEqual(meeting.hostSnapshot().moment.results, { total: 3, counts: [1, 1, 0], missed: 1 });
+  assert.equal(a.points, 30);
+  assert.equal(c.points, 0);
+  assert.equal(meeting.attendeeSnapshot(d.id).moment.correct, 1);
+});
+
+test('recall check: hidden from attendees until closed, defaults to 20 seconds', () => {
+  const { meeting, advance } = makeMeeting();
+  const a = join(meeting, 'A');
+  launchRecall(meeting);
+  assert.equal(meeting.moment.closesAt - meeting.moment.openedAt, 20_000);
+  assert.equal(meeting.attendeeSnapshot(a.id).moment.correct, undefined);
+  advance(21_000);
+  meeting.tick();
+  assert.equal(meeting.moment.status, 'closed');
+  assert.equal(meeting.attendeeSnapshot(a.id).moment.correct, 1);
+});
+
+test('recall check: capped at one per 15 minutes unless overridden', () => {
+  const { meeting, advance } = makeMeeting();
+  join(meeting, 'A');
+  launchRecall(meeting);
+  meeting.closeMoment();
+  assert.throws(() => launchRecall(meeting), /available in/);
+  assert.ok(meeting.hostSnapshot().recallNextAt > 0);
+  launchRecall(meeting, { override: true });
+  meeting.closeMoment();
+  advance(15 * 60_000 + 1);
+  launchRecall(meeting);
+  assert.equal(meeting.moment.type, 'recall');
+});
+
+test('recall check needs a correct answer and options', () => {
+  const { meeting } = makeMeeting();
+  assert.throws(() => launchRecall(meeting, { correct: null }), ActionError);
+  assert.throws(() => launchRecall(meeting, { options: ['Only one'] }), ActionError);
+});
+
+test('agenda: parses lines into timed segments and ignores junk', () => {
+  const { meeting } = makeMeeting();
+  meeting.setAgenda('Intro, 8\nRoadmap - 16 min\nBudget 16\n\nRisks, 15');
+  assert.deepEqual(meeting.agendaSegments.map((s) => [s.title, s.startMin, s.endMin]), [
+    ['Intro', 0, 8], ['Roadmap', 8, 24], ['Budget', 24, 40], ['Risks', 40, 55],
+  ]);
+  meeting.setAgenda('No minutes here');
+  assert.equal(meeting.agendaSegments[0].minutes, 10);
+  meeting.setAgenda('');
+  assert.equal(meeting.agendaSegments.length, 0);
+});
+
+test('agenda: per-segment engagement stats and attendee view of the current segment', () => {
+  const { meeting, advance } = makeMeeting();
+  const people = Array.from({ length: 4 }, (_, i) => join(meeting, `P${i}`));
+  meeting.setAgenda('Intro, 5\nBudget, 10');
+  for (const p of people) meeting.react(p.id, 'agree');
+  meeting.tick();
+  advance(6 * 60_000);
+  meeting.tick();
+  const [intro, budget] = meeting.hostSnapshot().agenda.segments;
+  assert.equal(intro.avg, 100);
+  assert.equal(budget.avg, 0);
+  assert.equal(meeting.attendeeSnapshot(people[0].id).agenda.current, 'Budget');
+});
+
+test('dip suggestion names the agenda segment and offers a recall check', () => {
+  const { meeting, advance } = makeMeeting();
+  const people = Array.from({ length: 5 }, (_, i) => join(meeting, `P${i}`));
+  meeting.setAgenda('Intro, 3\nBudget, 30');
+  for (const p of people) meeting.react(p.id, 'agree');
+  for (let i = 0; i < 4; i++) { meeting.tick(); advance(31_000); }
+  advance(5 * 60_000);
+  meeting.tick();
+  const dip = meeting.suggestions().find((s) => s.id === 'dip');
+  assert.match(dip.text, /during Budget/);
+  assert.ok(dip.actions.includes('recall'));
+});
+
+test('coach summary: dip, recovery, recall result, open questions, next step', () => {
+  const { meeting, advance } = makeMeeting();
+  const people = Array.from({ length: 8 }, (_, i) => join(meeting, `P${i}`));
+  meeting.setAgenda('Intro, 4\nBudget, 40');
+  for (const p of people) meeting.react(p.id, 'agree');
+  for (let i = 0; i < 4; i++) { meeting.tick(); advance(31_000); }
+  advance(6 * 60_000);
+  meeting.tick();
+  launchRecall(meeting);
+  const id = meeting.moment.id;
+  people.slice(0, 4).forEach((p, i) => meeting.respond(p.id, id, i < 2 ? 1 : 'missed'));
+  advance(21_000);
+  meeting.tick();
+  advance(31_000);
+  meeting.tick();
+  meeting.ask(people[0].id, 'Who owns billing?');
+  meeting.end();
+  const coach = meeting.hostSnapshot().summary.coach;
+  const ids = coach.insights.map((i) => i.id);
+  assert.ok(ids.includes('dip'));
+  assert.ok(ids.includes('recall'));
+  assert.ok(ids.includes('questions'));
+  assert.match(coach.insights.find((i) => i.id === 'dip').title, /Budget/);
+  assert.match(coach.insights.find((i) => i.id === 'recall').detail, /Missed that/);
+  assert.match(coach.next, /Budget/);
+  assert.equal(meeting.attendeeSnapshot(people[0].id).recap.coach, undefined);
+});
+
+test('coach summary is calm for a healthy meeting', () => {
+  const { meeting } = makeMeeting();
+  const people = Array.from({ length: 6 }, (_, i) => join(meeting, `P${i}`));
+  for (const p of people) meeting.react(p.id, 'agree');
+  meeting.tick();
+  meeting.end();
+  const coach = meeting.hostSnapshot().summary.coach;
+  assert.deepEqual(coach.insights.map((i) => i.id), []);
+  assert.match(coach.next, /Keep this format/);
+});

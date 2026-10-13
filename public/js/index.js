@@ -10,7 +10,7 @@ $('#create').addEventListener('submit', async (event) => {
     const response = await fetch('/api/meetings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: $('#title').value, expected: $('#expected').value }),
+      body: JSON.stringify({ title: $('#title').value, expected: $('#expected').value, agenda: $('#agenda').value }),
     });
     const body = await response.json();
     if (!response.ok) throw new Error(body.error ?? 'Could not create the meeting.');

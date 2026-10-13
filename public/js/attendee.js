@@ -1,4 +1,6 @@
 import { $, $$, codeFromPath, connect, esc, formatClock, REACTION_LABELS, storage, toast } from './common.js';
+import { hasWaiting, momentHtml, resultsHtml } from './views.js';
+import { createMini } from './mini.js';
 
 const code = codeFromPath();
 const identityKey = `engage.p.${code}`;
@@ -9,6 +11,19 @@ let state = null;
 let socket = null;
 let momentKey = '';
 let notes = storage.get(notesKey) ?? { text: '', todos: [] };
+let surveyUrl = null;
+let presenting = false;
+let skipped = 0;
+let seenMomentId = null;
+let seenFloor = false;
+const baseTitle = () => document.title.replace(/^● /, '');
+
+const mini = createMini({
+  send: (message) => socket?.send(message),
+  now: () => socket?.now() ?? Date.now(),
+  onClosed: () => renderMiniButton(),
+  onPresent: () => setPresenting(true),
+});
 
 const gate = $('#gate');
 const app = $('#app');
@@ -24,6 +39,7 @@ const showFatal = (message) => {
 // ---- entry ----------------------------------------------------------------
 
 async function start() {
+  fetch('/api/config').then((r) => r.json()).then((c) => { surveyUrl = c.surveyUrl; }).catch(() => {});
   const response = await fetch(`/api/meetings/${code}`);
   if (!response.ok) return showFatal('We could not find that meeting. Check the code or link with the host.');
   const meeting = await response.json();
@@ -97,12 +113,65 @@ function render() {
   $('#clock').hidden = false;
   $('#points').hidden = false;
   $('#points').textContent = `${state.me.points} pts`;
+  trackPresenting();
   renderBanners();
   renderMoment();
   renderQuestions();
   renderGames();
+  renderMiniButton();
+  mini.update(state);
+  updateTitleBadge();
   tick();
 }
+
+// ---- presenting mode and the mini window ------------------------------------
+
+function trackPresenting() {
+  const id = state.moment?.id ?? null;
+  if (presenting && id && id !== seenMomentId) skipped += 1;
+  if (presenting && state.floorOpen && !seenFloor) skipped += 1;
+  seenMomentId = id;
+  seenFloor = state.floorOpen;
+}
+
+function setPresenting(on) {
+  presenting = on;
+  try { sessionStorage.setItem(`engage.presenting.${code}`, on ? '1' : ''); } catch { /* storage can be blocked */ }
+  if (on) {
+    skipped = 0;
+    mini.close();
+  }
+  if (state) {
+    renderBanners();
+    renderMiniButton();
+  }
+}
+
+function renderMiniButton() {
+  const pop = $('#pop-out');
+  const sw = $('#presenting');
+  pop.hidden = false;
+  sw.hidden = false;
+  pop.textContent = mini.isOpen() ? 'Mini window open' : 'Mini window';
+  pop.disabled = mini.isOpen();
+  sw.setAttribute('aria-checked', String(presenting));
+}
+
+function updateTitleBadge() {
+  const waiting = hasWaiting(state) && document.hidden && !mini.isOpen();
+  document.title = `${waiting ? '● ' : ''}${baseTitle()}`;
+}
+document.addEventListener('visibilitychange', () => state && updateTitleBadge());
+
+$('#pop-out').addEventListener('click', async () => {
+  if (presenting) return toast('Turn off presenting first.');
+  const ok = await mini.open();
+  if (!ok) return toast('The browser blocked the mini window. Allow pop-ups for this site.');
+  renderMiniButton();
+  mini.update(state);
+});
+$('#presenting').addEventListener('click', () => setPresenting(!presenting));
+try { presenting = sessionStorage.getItem(`engage.presenting.${code}`) === '1'; } catch { /* ignore */ }
 
 function tick() {
   if (!state || !socket) return;
@@ -118,75 +187,20 @@ function renderBanners() {
   if (state.focus) {
     parts.push('<div class="banner focus" role="status"><span><b>Focus moment.</b> The host paused prompts and games. Back to the meeting.</span></div>');
   }
+  if (presenting) {
+    parts.push(`<div class="banner" role="status"><span><b>Presenting.</b> The mini window is closed and nothing will pop up. ${skipped} ${skipped === 1 ? 'prompt' : 'prompts'} skipped, none queued.</span><button id="presenting-off">Turn off</button></div>`);
+  }
   if (state.floorOpen && !state.focus) {
     parts.push('<div class="banner" role="status"><span><b>The host invites your view</b> on the next topic. Add a question or comment below.</span><button id="floor-go">Write something</button></div>');
   }
   $('#banners').innerHTML = parts.join('');
 }
 
-const resultsHtml = (moment) => {
-  const r = moment.results;
-  if (moment.type === 'poll' || moment.type === 'quiz') {
-    return moment.options.map((option, i) => {
-      const pct = r.total ? Math.round((r.counts[i] / r.total) * 100) : 0;
-      const right = moment.type === 'quiz' && moment.correct === i;
-      return `<div class="bar-row ${right ? 'right' : ''}"><span>${esc(option)}${right ? ' ✓' : ''}</span><div class="bar"><span style="width:${pct}%"></span></div><span class="num">${pct}%</span></div>`;
-    }).join('');
-  }
-  if (moment.type === 'pulse') {
-    return `<p class="num" style="font-size: 22px; font-weight: 650">${r.average ?? '–'} <span class="small muted">group average of 5</span></p>`;
-  }
-  const max = Math.max(1, ...r.words.map((w) => w.n));
-  return `<div class="words">${r.words.map((w) => `<span style="font-size:${14 + (w.n / max) * 18}px">${esc(w.word)}</span>`).join('')}</div>`;
-};
-
 function renderMoment() {
-  const moment = state.moment;
-  const key = JSON.stringify([moment, state.focus]);
+  const key = JSON.stringify([state.moment, state.focus]);
   if (key === momentKey) return;
   momentKey = key;
-  const box = $('#moment');
-
-  if (!moment) {
-    box.innerHTML = '<p class="muted">Nothing to answer. Stay with the meeting, we will ping you when the host asks something.</p>';
-    return;
-  }
-
-  const head = `<p><b>${esc(moment.prompt)}</b></p>`;
-  const countdown = moment.status === 'open' && moment.closesAt
-    ? `<p class="small muted">Closes in <span class="num" data-countdown="${moment.closesAt}"></span></p>` : '';
-
-  if (moment.status === 'closed') {
-    let verdict = '';
-    if (moment.type === 'quiz' && moment.mine !== null) {
-      verdict = moment.mine === moment.correct
-        ? '<p class="chip ok">You got it right</p>' : '<p class="chip warn">Not this time</p>';
-    }
-    box.innerHTML = `<div class="stack">${head}${verdict}${resultsHtml(moment)}<p class="small muted">Closed. Results are for the whole group.</p></div>`;
-    return;
-  }
-
-  if (state.focus) {
-    box.innerHTML = `<div class="stack">${head}<p class="muted">Paused while the host has Focus on. You can answer when it resumes.</p></div>`;
-    return;
-  }
-
-  const answered = moment.mine !== null && moment.type !== 'wordcloud';
-  if (answered) {
-    box.innerHTML = `<div class="stack">${head}<p class="chip ok">Answer recorded</p>${countdown}<p class="small muted">Results appear when the host closes this.</p></div>`;
-    return;
-  }
-
-  let controls = '';
-  if (moment.type === 'poll' || moment.type === 'quiz') {
-    controls = `<div class="moment-options">${moment.options.map((o, i) => `<button data-answer="${i}">${esc(o)}</button>`).join('')}</div>`;
-  } else if (moment.type === 'pulse') {
-    controls = `<div class="scale">${[1, 2, 3, 4, 5].map((n) => `<button data-answer="${n}" aria-label="${n} out of 5">${n}</button>`).join('')}</div><div class="row spread small muted"><span>Not great</span><span>Great</span></div>`;
-  } else {
-    const mine = Array.isArray(moment.mine) ? moment.mine : [];
-    controls = `<form id="word-form" class="row" autocomplete="off"><input id="word-input" class="grow" type="text" maxlength="24" placeholder="One word" aria-label="Your word" ${mine.length >= 3 ? 'disabled' : ''}><button class="primary" ${mine.length >= 3 ? 'disabled' : ''}>Send</button></form>${mine.length ? `<p class="small muted">You sent: ${esc(mine.join(', '))}</p>` : ''}`;
-  }
-  box.innerHTML = `<div class="stack">${head}${controls}${countdown}</div>`;
+  $('#moment').innerHTML = momentHtml(state);
 }
 
 function renderQuestions() {
@@ -307,7 +321,9 @@ function renderRecap() {
         <section class="card"><h2>Your questions</h2><div class="q-list">${mine}</div></section>
       </div>
       <div class="stack"><section class="card"><h2>Results from the meeting</h2>${moments}</section></div>
-    </div>`;
+    </div>
+    ${surveyUrl ? `<p class="muted">How was Engage for you? <a href="${esc(surveyUrl)}" target="_blank" rel="noopener noreferrer">Share quick feedback</a>. It takes under a minute.</p>` : ''}
+    <p class="small muted"><a href="/privacy.html">How Engage handles data</a></p>`;
   $('#recap-export').onclick = downloadNotes;
 }
 
@@ -317,6 +333,7 @@ document.addEventListener('click', (event) => {
   const el = event.target.closest('button');
   if (!el) return;
   if (el.id === 'floor-go') return $('#ask-text').focus();
+  if (el.id === 'presenting-off') return setPresenting(false);
   if (el.dataset.tab) {
     $('#att-grid').dataset.active = el.dataset.tab;
     for (const t of $$('#att-tabs button')) t.setAttribute('aria-selected', String(t === el));
@@ -333,9 +350,9 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('submit', (event) => {
-  if (event.target.id === 'word-form') {
+  if (event.target.classList.contains('word-form')) {
     event.preventDefault();
-    const input = $('#word-input');
+    const input = event.target.querySelector('.word-input');
     if (input.value.trim()) act({ t: 'respond', momentId: state.moment.id, value: input.value });
   }
 });

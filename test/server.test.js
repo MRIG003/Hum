@@ -132,3 +132,36 @@ test('static pages and security headers', async () => {
   assert.equal((await fetch(`http://${base}/../package.json`)).status, 404);
   assert.equal((await fetch(`http://${base}/api/meetings/ZZZZZZ`)).status, 404);
 });
+
+test('config endpoint exposes the survey link only when set', async () => {
+  const response = await fetch(`http://${base}/api/config`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { surveyUrl: null });
+});
+
+test('host can set an agenda and attendees see the current topic', async () => {
+  const { code, hostToken } = await createMeeting();
+  const host = await open({ t: 'hello', role: 'host', code, hostToken });
+  const a = await open({ t: 'hello', role: 'attendee', code, name: 'A' });
+  await a.until((m) => m.t === 'state');
+  host.send({ t: 'setAgenda', text: 'Intro, 5\nBudget, 20' });
+  const state = (await host.until((m) => m.t === 'state' && m.state.agenda.segments.length === 2)).state;
+  assert.deepEqual(state.agenda.segments.map((s) => s.title), ['Intro', 'Budget']);
+  const view = (await a.until((m) => m.t === 'state' && m.state.agenda.segments.length === 2)).state;
+  assert.equal(view.agenda.current, 'Intro');
+});
+
+test('recall check over the socket: missed answer, group result, cap error', async () => {
+  const { code, hostToken } = await createMeeting();
+  const host = await open({ t: 'hello', role: 'host', code, hostToken });
+  const a = await open({ t: 'hello', role: 'attendee', code, name: 'A' });
+  await a.until((m) => m.t === 'state');
+  const recall = { t: 'launchMoment', type: 'recall', prompt: 'Which?', options: ['X', 'Y'], correct: 1 };
+  host.send(recall);
+  const open1 = (await a.until((m) => m.t === 'state' && m.state.moment?.type === 'recall')).state;
+  a.send({ t: 'respond', momentId: open1.moment.id, value: 'missed' });
+  await host.until((m) => m.t === 'state' && m.state.moment?.results.missed === 1);
+  host.send({ t: 'closeMoment' });
+  host.send(recall);
+  assert.match((await host.until((m) => m.t === 'error')).error, /available in/);
+});

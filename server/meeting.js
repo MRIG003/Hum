@@ -18,6 +18,8 @@ const MAX_QUESTIONS = 200;
 const MAX_SERIES = 720;
 const NUDGE_MS = 30_000;
 const SUGGESTION_COOLDOWN_MS = 5 * 60_000;
+const RECALL_CAP_MS = 15 * 60_000;
+const RECALL_DEFAULT_SEC = 20;
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const POINTS = {
@@ -73,7 +75,10 @@ export class Meeting {
     this.code = code ?? newCode();
     this.hostToken = newId(16);
     this.title = clean(title, 80) || 'Untitled meeting';
-    this.agenda = clean(agenda, 200);
+    this.agendaText = '';
+    this.agendaSegments = [];
+    this.lastRecallAt = 0;
+    this.setAgenda(agenda);
     this.expected = Math.max(0, Math.min(1000, Number.parseInt(expected, 10) || 0));
     this.createdAt = this.clock();
     this.startedAt = this.createdAt;
@@ -241,6 +246,11 @@ export class Meeting {
     }
 
     if (mo.responses.has(pid)) throw new ActionError('You already answered.');
+    if (mo.type === 'recall' && value === 'missed') {
+      mo.responses.set(pid, -1);
+      this.#touch(p, 'recall', 0, 'answers');
+      return;
+    }
     const n = Number.parseInt(value, 10);
     if (mo.type === 'pulse') {
       if (!(n >= 1 && n <= 5)) throw new ActionError('Pick 1 to 5.');
@@ -287,30 +297,36 @@ export class Meeting {
 
   // ---- host actions -------------------------------------------------------
 
-  launchMoment({ type, prompt, options = [], correct = null, durationSec = 0, auto = false }) {
+  launchMoment({ type, prompt, options = [], correct = null, durationSec = 0, auto = false, override = false }) {
     this.#requireLive();
-    if (!['poll', 'pulse', 'quiz', 'wordcloud'].includes(type)) {
+    if (!['poll', 'pulse', 'quiz', 'recall', 'wordcloud'].includes(type)) {
       throw new ActionError('Unknown moment type.');
     }
     const text = clean(prompt, 160);
     if (!text) throw new ActionError('Add a question for the room.');
 
     let cleaned = [];
-    if (type === 'poll' || type === 'quiz') {
+    if (type === 'poll' || type === 'quiz' || type === 'recall') {
       cleaned = options.map((option) => clean(option, 80)).filter(Boolean).slice(0, 6);
       if (cleaned.length < 2) throw new ActionError('Add at least two options.');
     }
     let correctIndex = null;
-    if (type === 'quiz') {
+    if (type === 'quiz' || type === 'recall') {
       correctIndex = Number.parseInt(correct, 10);
       if (!(correctIndex >= 0 && correctIndex < cleaned.length)) {
         throw new ActionError('Mark the correct answer.');
       }
     }
 
-    if (this.moment?.status === 'open') this.closeMoment();
     const now = this.clock();
-    const seconds = Math.max(0, Math.min(600, Number.parseInt(durationSec, 10) || 0));
+    if (type === 'recall' && !override && this.lastRecallAt && now - this.lastRecallAt < RECALL_CAP_MS) {
+      const wait = Math.ceil((this.lastRecallAt + RECALL_CAP_MS - now) / 1000);
+      const mm = Math.floor(wait / 60);
+      throw new ActionError(`The next recall check is available in ${mm}:${String(wait % 60).padStart(2, '0')}. Launch anyway to override.`);
+    }
+    if (this.moment?.status === 'open') this.closeMoment();
+    const fallbackSeconds = type === 'recall' ? RECALL_DEFAULT_SEC : 0;
+    const seconds = Math.max(0, Math.min(600, Number.parseInt(durationSec, 10) || fallbackSeconds));
     this.moment = {
       id: newId(4),
       type,
@@ -328,6 +344,10 @@ export class Meeting {
       this.lastPulseAt = now;
       this.events.push({ t: now, type: 'pulse' });
     }
+    if (type === 'recall') {
+      this.lastRecallAt = now;
+      this.events.push({ t: now, type: 'recall' });
+    }
     this.suggestionsSuppressedUntil = now + SUGGESTION_COOLDOWN_MS;
   }
 
@@ -336,7 +356,7 @@ export class Meeting {
     if (!mo || mo.status !== 'open') return;
     mo.status = 'closed';
     mo.closedAt = this.clock();
-    if (mo.type === 'quiz') {
+    if (mo.type === 'quiz' || mo.type === 'recall') {
       for (const [pid, answer] of mo.responses) {
         if (answer === mo.correct) {
           const p = this.participants.get(pid);
@@ -573,8 +593,8 @@ export class Meeting {
       if (peak - last.pct >= 20 && last.pct < 70) {
         out.push({
           id: 'dip',
-          text: `Participation dropped from ${peak}% to ${last.pct}% in the last 10 minutes. Try a pulse check or open the floor.`,
-          actions: ['pulse', 'floor', 'break'],
+          text: `Participation dropped from ${peak}% to ${last.pct}% in the last 10 minutes${this.#segmentLabel(now)}. Try a recall check, a pulse check or open the floor.`,
+          actions: ['recall', 'pulse', 'floor', 'break'],
         });
       }
     }
@@ -592,12 +612,171 @@ export class Meeting {
     return out;
   }
 
+  // ---- agenda and coaching ------------------------------------------------
+
+  setAgenda(text) {
+    const lines = String(text ?? '').split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 12);
+    const segments = [];
+    let start = 0;
+    for (const line of lines) {
+      const m = line.match(/^(.*?)[\s,;:-]+(\d{1,3})\s*(?:min(?:ute)?s?)?$/i);
+      const title = clean(m ? m[1] : line, 40);
+      const minutes = Math.max(1, Math.min(240, m ? Number.parseInt(m[2], 10) : 10));
+      if (!title) continue;
+      segments.push({ title, minutes, startMin: start, endMin: start + minutes });
+      start += minutes;
+    }
+    this.agendaSegments = segments;
+    this.agendaText = segments.map((s) => `${s.title}, ${s.minutes}`).join('\n');
+  }
+
+  #segmentAtMinute(minute) {
+    return this.agendaSegments.find((s) => minute >= s.startMin && minute < s.endMin) ?? null;
+  }
+
+  #segmentLabel(now) {
+    const seg = this.#segmentAtMinute((now - this.startedAt) / 60_000);
+    return seg ? `, during ${seg.title}` : '';
+  }
+
+  agendaSegmentStats() {
+    return this.agendaSegments.map((seg) => {
+      const from = this.startedAt + seg.startMin * 60_000;
+      const to = this.startedAt + seg.endMin * 60_000;
+      const samples = this.series.filter((x) => x.t >= from && x.t < to);
+      return {
+        title: seg.title,
+        startMin: seg.startMin,
+        endMin: seg.endMin,
+        avg: samples.length ? Math.round(samples.reduce((sum, x) => sum + x.pct, 0) / samples.length) : null,
+        low: samples.length ? Math.min(...samples.map((x) => x.pct)) : null,
+        samples: samples.length,
+      };
+    });
+  }
+
+  coach() {
+    const insights = [];
+    const joined = this.participants.size;
+    const minuteOf = (t) => Math.round((t - this.startedAt) / 60_000);
+    let worst = null;
+
+    for (const dip of this.dips()) {
+      const inside = this.series.filter((x) => x.t >= dip.from && x.t <= dip.to);
+      const before = this.series.filter((x) => x.t < dip.from && x.t >= dip.from - 10 * 60_000);
+      const low = Math.min(...inside.map((x) => x.pct));
+      const peak = before.length ? Math.max(...before.map((x) => x.pct)) : low;
+      if (!worst || peak - low > worst.peak - worst.low) worst = { dip, low, peak };
+    }
+    if (worst) {
+      const minute = minuteOf(worst.dip.from);
+      const seg = this.#segmentAtMinute(minute);
+      let detail = `It fell from ${worst.peak}% to ${worst.low}% starting around minute ${minute}.`;
+      const rescue = this.events.find((e) => (e.type === 'pulse' || e.type === 'floor' || e.type === 'recall') && e.t >= worst.dip.from);
+      if (rescue) {
+        const after = this.series.filter((x) => x.t > rescue.t && x.t <= rescue.t + 5 * 60_000);
+        const best = after.length ? Math.max(...after.map((x) => x.pct)) : 0;
+        if (best >= worst.low + 15) {
+          const what = rescue.type === 'pulse' ? 'pulse check' : rescue.type === 'recall' ? 'recall check' : 'invitation to share';
+          detail += ` The ${what} at minute ${minuteOf(rescue.t)} brought it back to ${best}%.`;
+        }
+      }
+      worst.minute = minute;
+      worst.seg = seg;
+      insights.push({ id: 'dip', title: seg ? `Engagement dipped during ${seg.title}.` : 'Engagement dipped.', detail });
+    }
+
+    let recallMissedPct = null;
+    const recalls = this.momentHistory.filter((m) => m.type === 'recall');
+    if (recalls.length) {
+      let answered = 0;
+      let got = 0;
+      let missed = 0;
+      for (const m of recalls) {
+        answered += m.results.total;
+        got += m.results.counts[m.correct] ?? 0;
+        missed += m.results.missed;
+      }
+      if (answered) {
+        const gotPct = Math.round((got / answered) * 100);
+        recallMissedPct = Math.round((missed / answered) * 100);
+        if (recallMissedPct >= 20) {
+          insights.push({
+            id: 'recall',
+            title: `About 1 in ${Math.max(2, Math.round(100 / recallMissedPct))} missed what was just covered.`,
+            detail: `In the recall check, ${gotPct}% got it and ${recallMissedPct}% chose "Missed that". A one-line recap after key points would help.`,
+          });
+        } else {
+          insights.push({
+            id: 'recall',
+            title: 'Most people followed the discussion.',
+            detail: `${gotPct}% got the recall check right and ${recallMissedPct}% chose "Missed that".`,
+          });
+        }
+      }
+    }
+
+    const open = this.questions.filter((q) => !q.answered);
+    if (open.length) {
+      const top = [...open].sort((a, b) => b.votes.size - a.votes.size)[0];
+      insights.push({
+        id: 'questions',
+        title: `${open.length} ${open.length === 1 ? 'question is' : 'questions are'} still open.`,
+        detail: `Top question: "${top.text}" with ${top.votes.size} ${top.votes.size === 1 ? 'vote' : 'votes'}. Consider replying in the meeting chat.`,
+      });
+    }
+
+    const lostFast = this.reactionLog.filter((r) => r.kind === 'lost' || r.kind === 'fast').length;
+    if (joined >= 5 && lostFast >= Math.max(3, Math.ceil(joined * 0.25))) {
+      insights.push({
+        id: 'confusion',
+        title: 'Many people signalled "Lost me" or "Too fast".',
+        detail: `${lostFast} signals from ${joined} people. Consider slowing down or adding a short recap.`,
+      });
+    }
+
+    const spread = this.participationSpread();
+    if (joined >= 5 && spread !== null && spread > 60) {
+      insights.push({
+        id: 'spread',
+        title: 'A few people did most of the participating.',
+        detail: `The top 20% of people made ${spread}% of all actions. A poll or pulse check early on helps quieter people take part.`,
+      });
+    }
+
+    const participated = [...this.participants.values()].filter((p) => p.lastActionAt > 0).length;
+    const rate = joined ? Math.round((participated / joined) * 100) : 0;
+    if (joined >= 5 && rate < 60) {
+      insights.push({
+        id: 'participation',
+        title: `Only ${rate}% of people took part.`,
+        detail: 'Try a pulse check in the first five minutes so everyone takes part early.',
+      });
+    }
+
+    let next = 'Keep this format. Engagement held up well.';
+    if (worst && worst.seg) next = `Move ${worst.seg.title} earlier in the meeting, or add a short break around minute ${worst.minute}.`;
+    else if (worst) next = `Plan a short break or a pulse check around minute ${worst.minute}.`;
+    else if (recallMissedPct !== null && recallMissedPct >= 20) next = 'Add a one-sentence recap after each decision.';
+    else if (joined >= 5 && rate < 60) next = 'Open with a pulse check so everyone takes part early.';
+    return { insights: insights.slice(0, 5), next };
+  }
+
   #freshPrediction(question) {
     return { question, status: 'open', result: null, answers: new Map() };
   }
 
   #momentResults(mo) {
     const total = mo.responses.size;
+    if (mo.type === 'recall') {
+      const counts = mo.options.map(() => 0);
+      let missed = 0;
+      for (const value of mo.responses.values()) {
+        if (value === -1) missed += 1;
+        else counts[value] += 1;
+      }
+      return { total, counts, missed };
+    }
     if (mo.type === 'poll' || mo.type === 'quiz') {
       const counts = mo.options.map(() => 0);
       for (const value of mo.responses.values()) counts[value] += 1;
@@ -653,7 +832,7 @@ export class Meeting {
     const view = { ...base, mine: mine ?? null };
     if (mo.status === 'closed') {
       view.results = this.#momentResults(mo);
-      if (mo.type === 'quiz') view.correct = mo.correct;
+      if (mo.type === 'quiz' || mo.type === 'recall') view.correct = mo.correct;
     }
     return view;
   }
@@ -728,6 +907,8 @@ export class Meeting {
       dips: this.dips(),
       events: this.events,
       moments: this.momentHistory,
+      agenda: this.agendaSegmentStats(),
+      coach: this.coach(),
       topQuestions: this.#publicQuestions(null).slice(0, 5),
       unanswered: open.length,
       prediction: {
@@ -747,7 +928,8 @@ export class Meeting {
       role: 'host',
       code: this.code,
       title: this.title,
-      agenda: this.agenda,
+      agenda: { text: this.agendaText, segments: this.agendaSegmentStats() },
+      recallNextAt: this.lastRecallAt ? this.lastRecallAt + RECALL_CAP_MS : 0,
       status: this.status,
       now,
       startedAt: this.startedAt,
@@ -790,7 +972,10 @@ export class Meeting {
       role: 'attendee',
       code: this.code,
       title: this.title,
-      agenda: this.agenda,
+      agenda: {
+        segments: this.agendaSegments.map(({ title, startMin, endMin }) => ({ title, startMin, endMin })),
+        current: this.#segmentAtMinute((now - this.startedAt) / 60_000)?.title ?? null,
+      },
       status: this.status,
       now,
       startedAt: this.startedAt,

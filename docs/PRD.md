@@ -127,9 +127,9 @@ Estimates assume a team of about three people.
 | FR-1.2 | Engage shows a join link and a six-character code (letters and digits that avoid look-alikes) | P0 | Built |
 | FR-1.3 | Engage offers a ready-to-paste chat message and one-click copy for link and message | P0 | Built |
 | FR-1.4 | Host can restart the meeting clock when the meeting actually begins, which also clears the engagement chart | P1 | Built |
-| FR-1.5 | Host can reopen the host console from a different browser or device | P1 | Planned |
+| FR-1.5 | Host can reopen the host console from a different browser or device | P1 | Built (private host link, no accounts) |
 | FR-1.6 | Templates for common meeting types (standup, all-hands, review, workshop) that preload prompts and game windows | P2 | Planned |
-| FR-1.7 | Host enters an agenda with times, and Engage ties the chart to agenda segments | P1 | Planned |
+| FR-1.7 | Host enters an agenda with times, and Engage ties the chart to agenda segments | P1 | Built |
 
 ### 8.2 Join and identity
 
@@ -172,8 +172,8 @@ Estimates assume a team of about three people.
 | FR-5.5 | Each moment closes automatically after 30 seconds, 1 minute or 2 minutes, or when the host closes it | P0 | Built |
 | FR-5.6 | Only one moment is open at a time. Launching another closes the first | P0 | Built |
 | FR-5.7 | Attendees see group results only after the host closes a moment. The host sees live results | P0 | Built |
-| FR-5.8 | A "Missed that" option on recall quizzes, reported separately from wrong answers | P0 | Planned |
-| FR-5.9 | Recall check cap: at most one per 15 minutes unless the host overrides | P1 | Planned |
+| FR-5.8 | A "Missed that" option on recall quizzes, reported separately from wrong answers | P0 | Built |
+| FR-5.9 | Recall check cap: at most one per 15 minutes unless the host overrides | P1 | Built |
 | FR-5.10 | Closing takeaway: one minute at the end to pick or write the main takeaway | P2 | Planned |
 
 ### 8.6 Room pulse and engagement
@@ -189,7 +189,7 @@ Estimates assume a team of about three people.
 | FR-6.7 | Suggestions are suppressed for five minutes after the host launches a moment or opens the floor | P1 | Built |
 | FR-6.8 | **Open the floor:** a 30-second banner invites everyone, never named individuals, to share a view or question | P1 | Built |
 | FR-6.9 | The host never sees who is idle, quiet, or on another window. No such measurement exists | P0 | Built (by design) |
-| FR-6.10 | Chart ties dips to agenda segments, for example "dipped during Budget" | P1 | Planned |
+| FR-6.10 | Chart ties dips to agenda segments, for example "dipped during Budget" | P1 | Built |
 
 ### 8.7 Focus and presenter safety
 
@@ -198,13 +198,13 @@ Estimates assume a team of about three people.
 | FR-7.1 | **Focus moment:** one click pauses all prompts and games for everyone. One click resumes | P0 | Built |
 | FR-7.2 | While Focus is on, the server rejects moment responses, bingo marks and predictions | P0 | Built, covered by automated test |
 | FR-7.3 | Attendees see a plain banner explaining the pause | P0 | Built |
-| FR-7.4 | **Floating mini window** (browser picture-in-picture) with three states: pill (default), card, and presenting | P0 | Planned |
-| FR-7.5 | The pill shows a dot when something is waiting. Prompts never expand it, except the recall check (FR-7.7) | P0 | Planned |
-| FR-7.6 | **Presenting mode:** one click closes the window and suppresses and discards all prompts for that attendee until turned off | P0 | Planned |
-| FR-7.7 | The recall check may expand the pill into a compact card for up to 20 seconds, never in presenting mode. *Open decision D2* | P1 | Planned |
+| FR-7.4 | **Floating mini window** (browser picture-in-picture) with three states: pill (default), card, and presenting | P0 | Built |
+| FR-7.5 | The pill shows a dot when something is waiting. Prompts never expand it, except the recall check (FR-7.7) | P0 | Built |
+| FR-7.6 | **Presenting mode:** one click closes the window and suppresses and discards all prompts for that attendee until turned off | P0 | Built |
+| FR-7.7 | The recall check may expand the pill into a compact card for up to 20 seconds, never in presenting mode. *Open decision D2* | P1 | Built |
 | FR-7.8 | A minimum gap between prompts, which the host can override | P1 | Planned |
-| FR-7.9 | Browsers without picture-in-picture support (Safari, Firefox) fall back to the second-window layout, with a badge in the tab title | P0 | Planned |
-| FR-7.10 | On first use of the mini window, show a note that sharing the entire screen will show the window to the audience | P0 | Planned |
+| FR-7.9 | Browsers without picture-in-picture support (Safari, Firefox) fall back to the second-window layout, with a badge in the tab title | P0 | Built |
+| FR-7.10 | On first use of the mini window, show a note that sharing the entire screen will show the window to the audience | P0 | Built |
 
 ### 8.8 Games
 
@@ -234,7 +234,7 @@ Estimates assume a team of about three people.
 | FR-10.1 | Host ends the meeting and gets a summary: duration, participation rate, average engagement, spread of participation, all prompt results, top questions, reaction totals, prediction outcome | P0 | Built |
 | FR-10.2 | The host copies the summary as text or downloads it as Markdown | P1 | Built |
 | FR-10.3 | **Participation spread** is the share of all actions made by the top 20% of participants. Lower is more even | P1 | Built |
-| FR-10.4 | **Host coach summary:** a host-only set of tips after each meeting, such as when engagement dipped, unanswered questions, and one suggestion | P1 | Planned |
+| FR-10.4 | **Host coach summary:** a host-only set of tips after each meeting, such as when engagement dipped, unanswered questions, and one suggestion | P1 | Built |
 | FR-10.5 | Compare a meeting to the host's own previous meetings, never to other people | P2 | Planned (needs persistence) |
 | FR-10.6 | Send action items and unanswered questions to email or chat tools | P2 | Later |
 
@@ -300,7 +300,7 @@ Not collected in Phase 1: audio, video, screen content, transcripts, tab focus, 
 | PR-8 | Host identity is proven by a secret token held by the browser that created the meeting | P0 | Built (single browser only) |
 | PR-9 | Security headers on all pages (content security policy, no sniffing, no referrer), rate limits on message volume (25 per second per connection), meeting creation (30 per hour per address), and message size (8 KB) | P0 | Built |
 | PR-10 | All user-supplied text is escaped on display | P0 | Built |
-| PR-11 | A short privacy summary suitable for enterprise security review | P1 | Planned |
+| PR-11 | A short privacy summary suitable for enterprise security review | P1 | Built (privacy page) |
 | PR-12 | Encryption in transit for all traffic in any hosted environment | P0 | Planned (deployment) |
 
 ## 11. UX requirements

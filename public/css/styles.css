@@ -89,6 +89,9 @@ button.primary {
 }
 button.primary:hover { filter: brightness(1.08); background: var(--accent); }
 button.danger { color: var(--bad); }
+button.small { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+.switch-btn[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.moment-options button.missed { border-style: dashed; color: var(--muted); }
 button.ghost { background: transparent; border-color: transparent; color: var(--muted); }
 button.ghost:hover { background: var(--surface-2); }
 button.selected { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
@@ -195,6 +198,8 @@ label.check input { width: auto; min-height: 0; }
 .chart .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .chart .area { fill: var(--accent-soft); opacity: 0.5; }
 .chart .dip { fill: var(--warn-soft); }
+.chart .seg-band { fill: var(--surface-2); }
+.chart .seg-label { font-weight: 600; fill: var(--text); }
 .chart .marker { stroke: var(--accent-text); stroke-width: 1.5; stroke-dasharray: 3 3; }
 .chart text { fill: var(--muted); font-size: 11px; }
 .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); flex-wrap: wrap; }
@@ -210,6 +215,7 @@ label.check input { width: auto; min-height: 0; }
 .bar { height: 10px; background: var(--surface-2); border-radius: 6px; overflow: hidden; }
 .bar > span { display: block; height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.25s; }
 .bar-row.right .bar > span { background: var(--ok); }
+.bar-row.miss .bar > span { background: var(--muted); }
 .words { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; }
 
 .q-list { display: grid; gap: 8px; max-height: 420px; overflow: auto; }
@@ -279,3 +285,28 @@ label.check input { width: auto; min-height: 0; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ---------- mini window (floating or pop-up) ---------- */
+body.mini { padding: 0; background: var(--bg); overflow: hidden; }
+.mini-pill { display: flex; align-items: center; gap: 8px; height: 100vh; min-height: 56px; padding: 0 10px 0 14px; background: var(--surface); }
+.mini-open { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; min-height: 40px; padding: 0; }
+.mini-status { font-size: 13px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.mini-status.attn { color: var(--accent-text); }
+.mini-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+.mini-pill .dot.new { animation: ping 1.6s ease-out 2; }
+@keyframes ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 9px transparent; } }
+.icon-btn { width: 34px; height: 34px; min-height: 0; padding: 0; border-radius: 50%; display: grid; place-items: center; flex: none; }
+.icon-btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mini-card { height: 100vh; display: flex; flex-direction: column; position: relative; }
+.mini-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 12px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.mini-head .t { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mini-head .icon-btn { width: 30px; height: 30px; border-radius: 8px; }
+.mini-tabs { display: flex; gap: 2px; padding: 6px 10px 0; }
+.mini-tabs button { border: 0; background: transparent; color: var(--muted); border-bottom: 2px solid transparent; border-radius: 6px 6px 0 0; min-height: 30px; padding: 4px 10px; font-size: 13px; }
+.mini-tabs button[aria-selected="true"] { color: var(--accent-text); border-bottom-color: var(--accent); font-weight: 600; }
+.mini-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; display: grid; gap: 10px; align-content: start; }
+.mini-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 10px 11px; display: grid; gap: 8px; }
+.mini-auto { padding: 8px 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
+.mini-note { position: absolute; inset: 0; z-index: 2; background: color-mix(in srgb, var(--bg) 94%, transparent); display: grid; align-content: center; gap: 10px; padding: 18px; }
+.mini .react-bar button { padding: 6px 2px; font-size: 10.5px; min-height: 0; }
+.mini .bingo button { min-height: 44px; font-size: 11.5px; }

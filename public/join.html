@@ -14,6 +14,8 @@
       <span class="title" id="title"></span>
     </div>
     <div class="row">
+      <button id="pop-out" class="small" hidden title="Opens a small floating window you can place over the meeting">Mini window</button>
+      <button id="presenting" class="small switch-btn" role="switch" aria-checked="false" hidden title="Closes the mini window and skips prompts while you share your screen">I'm presenting</button>
       <span class="chip num" id="clock" hidden>0:00</span>
       <span class="chip accent num" id="points" hidden title="Only you can see your points">0 pts</span>
     </div>
@@ -46,6 +48,7 @@
             <li>Your points, bingo card, predictions or notes</li>
           </ul>
         </div>
+        <p class="small muted"><a href="/privacy.html" target="_blank" rel="noopener noreferrer">How Engage handles data</a></p>
         <p id="join-error" class="small" style="color: var(--bad)" role="alert" hidden></p>
         <button class="primary" type="submit">Join</button>
       </form>

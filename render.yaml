@@ -1,0 +1,13 @@
+# Render blueprint for the pilot deployment. See docs/deploy.md.
+services:
+  - type: web
+    name: engage
+    runtime: docker
+    plan: starter
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: TRUST_PROXY
+        value: "1"
+      - key: ENGAGE_SURVEY_URL
+        sync: false   # set to your feedback form link

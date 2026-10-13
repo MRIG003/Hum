@@ -42,6 +42,7 @@
           <button id="copy-link">Copy link</button>
           <button id="copy-message" class="primary">Copy chat message</button>
         </div>
+        <button id="copy-host-link" class="ghost small" title="Reopens this host console on another browser. Keep it private.">Copy private host link</button>
       </div>
     </section>
 
@@ -57,7 +58,7 @@
         <span class="chip" title="Engage only sees actions taken inside Engage">Only you can see this</span>
       </div>
       <svg id="chart" class="chart" role="img" aria-label="Engagement over time"></svg>
-      <div class="legend"><span>Share of connected people with an Engage action in the last 5 minutes</span></div>
+      <div class="legend"><span>Share of connected people with an Engage action in the last 5 minutes. Shaded bands are agenda topics.</span></div>
     </section>
 
     <div class="host-grid">
@@ -67,7 +68,7 @@
           <div class="tabs" role="tablist" id="moment-tabs">
             <button role="tab" aria-selected="true" data-kind="poll">Poll</button>
             <button role="tab" aria-selected="false" data-kind="pulse">Pulse check</button>
-            <button role="tab" aria-selected="false" data-kind="quiz">Recall quiz</button>
+            <button role="tab" aria-selected="false" data-kind="recall">Recall check</button>
             <button role="tab" aria-selected="false" data-kind="wordcloud">Word cloud</button>
           </div>
           <form id="moment-form" class="stack" autocomplete="off">
@@ -83,10 +84,12 @@
               <label for="f-correct">Correct answer</label>
               <select id="f-correct"></select>
             </div>
+            <p id="f-recall-note" class="small muted" hidden></p>
             <div class="row">
               <div class="grow">
                 <label for="f-duration">Closes automatically</label>
                 <select id="f-duration">
+                  <option value="20">after 20 seconds</option>
                   <option value="30">after 30 seconds</option>
                   <option value="60" selected>after 1 minute</option>
                   <option value="120">after 2 minutes</option>
@@ -111,6 +114,15 @@
         <section class="card" aria-label="Reactions">
           <div class="card-head"><h2>Reactions</h2><span class="small muted">last 2 minutes</span></div>
           <div class="reaction-grid" id="reactions"></div>
+        </section>
+
+        <section class="card" aria-label="Agenda">
+          <div class="card-head"><h2>Agenda</h2><span class="small muted">optional</span></div>
+          <form id="agenda-form" class="stack" autocomplete="off">
+            <textarea id="ag-text" rows="5" aria-label="Agenda, one item per line with minutes" placeholder="Intro, 8&#10;Roadmap, 16&#10;Budget, 16&#10;Risks, 15"></textarea>
+            <div class="row spread"><span class="small muted">One per line: title, minutes. The chart splits by topic.</span><button type="submit">Save agenda</button></div>
+          </form>
+          <div id="ag-list" class="stack small" style="margin-top: 10px"></div>
         </section>
 
         <section class="card" aria-label="Games">
