@@ -7,7 +7,7 @@ import qrcode from 'qrcode-generator';
 import { ActionError, Meeting, newCode } from './meeting.js';
 import { AuthError, createAuth } from './auth.js';
 import { meetingCsv } from './export.js';
-import { MemoryStore, openSqliteStore } from './store.js';
+import { MemoryStore, openPostgresStore, openSqliteStore } from './store.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT) || 3000;
@@ -488,18 +488,20 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
       clearInterval(ticker);
       clearInterval(flusher);
       flush();
-      store.close();
       for (const ws of wss.clients) ws.terminate();
-      wss.close(() => server.close(() => resolve()));
+      wss.close(() => server.close(() => Promise.resolve(store.close()).then(resolve)));
     });
 
   return { server, meetings, close };
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  const dbUrl = process.env.ENGAGE_DATABASE_URL;
   const dbFile = process.env.ENGAGE_DB;
-  const store = dbFile ? await openSqliteStore(dbFile) : new MemoryStore();
-  console.log(dbFile ? `Storing meetings in ${dbFile}` : 'No ENGAGE_DB set: meetings live in memory only.');
+  const store = dbUrl ? await openPostgresStore(dbUrl) : dbFile ? await openSqliteStore(dbFile) : new MemoryStore();
+  console.log(
+    dbUrl ? 'Storing meetings in Postgres.' : dbFile ? `Storing meetings in ${dbFile}` : 'No database set: meetings live in memory only.',
+  );
   const { server, close } = createApp({ store });
   server.listen(PORT, () => console.log(`Engage running on http://localhost:${PORT}`));
   // On deploys, close sockets so clients reconnect to the new instance.

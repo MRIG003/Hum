@@ -110,3 +110,79 @@ export const openSqliteStore = async (file) => {
     close: () => db.close(),
   };
 };
+
+// Postgres (Render, Supabase, any hosted Postgres). Reads are served from an in-memory copy
+// loaded at start, because this app runs as a single process; every change is written through
+// to Postgres in order. That keeps the store interface synchronous like the other two.
+export const openPostgresStore = async (connectionString) => {
+  const { default: pg } = await import('pg');
+  const ssl = /localhost|127\.0\.0\.1|sslmode=disable/.test(connectionString) ? false : { rejectUnauthorized: false };
+  const pool = new pg.Pool({ connectionString, ssl, max: 4 });
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS engage_meetings (
+      code TEXT PRIMARY KEY, owner_id TEXT, data JSONB NOT NULL, updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS engage_users (
+      id TEXT PRIMARY KEY, email TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, created_at BIGINT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS engage_sessions (
+      hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at BIGINT NOT NULL
+    );
+  `);
+
+  const cache = new MemoryStore();
+  for (const row of (await pool.query('SELECT data FROM engage_meetings')).rows) {
+    cache.meetings.set(row.data.code, { ownerId: row.data.ownerId ?? null, data: JSON.stringify(row.data) });
+  }
+  for (const u of (await pool.query('SELECT * FROM engage_users')).rows) {
+    cache.users.set(u.id, { id: u.id, email: u.email, salt: u.salt, hash: u.hash, createdAt: Number(u.created_at) });
+  }
+  for (const s of (await pool.query('SELECT * FROM engage_sessions')).rows) {
+    cache.sessions.set(s.hash, { userId: s.user_id, expiresAt: Number(s.expires_at) });
+  }
+
+  let queue = Promise.resolve();
+  const write = (sql, params) => {
+    queue = queue.then(() => pool.query(sql, params)).catch((error) => console.error('Postgres write failed:', error.message));
+  };
+
+  return {
+    kind: 'postgres',
+    saveMeeting: (code, ownerId, data) => {
+      cache.saveMeeting(code, ownerId, data);
+      write(
+        'INSERT INTO engage_meetings (code, owner_id, data, updated_at) VALUES ($1, $2, $3, now()) ON CONFLICT (code) DO UPDATE SET owner_id = $2, data = $3, updated_at = now()',
+        [code, ownerId ?? null, JSON.stringify(data)],
+      );
+    },
+    loadMeetings: () => cache.loadMeetings(),
+    deleteMeeting: (code) => {
+      cache.deleteMeeting(code);
+      write('DELETE FROM engage_meetings WHERE code = $1', [code]);
+    },
+    createUser: (user) => {
+      if (!cache.createUser(user)) return false;
+      write('INSERT INTO engage_users (id, email, salt, hash, created_at) VALUES ($1, $2, $3, $4, $5)', [user.id, user.email, user.salt, user.hash, user.createdAt]);
+      return true;
+    },
+    getUserByEmail: (email) => cache.getUserByEmail(email),
+    getUser: (id) => cache.getUser(id),
+    createSession: (hash, userId, expiresAt) => {
+      cache.createSession(hash, userId, expiresAt);
+      write('INSERT INTO engage_sessions (hash, user_id, expires_at) VALUES ($1, $2, $3) ON CONFLICT (hash) DO UPDATE SET expires_at = $3', [hash, userId, expiresAt]);
+    },
+    getSession: (hash) => cache.getSession(hash),
+    deleteSession: (hash) => {
+      cache.deleteSession(hash);
+      write('DELETE FROM engage_sessions WHERE hash = $1', [hash]);
+    },
+    purgeSessions: (now) => {
+      cache.purgeSessions(now);
+      write('DELETE FROM engage_sessions WHERE expires_at <= $1', [now]);
+    },
+    close: async () => {
+      await queue;
+      await pool.end();
+    },
+  };
+};

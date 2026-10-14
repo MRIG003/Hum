@@ -263,3 +263,28 @@ test('CSV and QR endpoints: export needs the host token, QR is an SVG, short add
   assert.equal(short.status, 302);
   assert.equal(short.headers.get('location'), `/j/${made.code}`);
 });
+
+// ---- Postgres store (runs only when ENGAGE_TEST_DATABASE_URL is set) ----------------------
+
+test('Postgres store keeps meetings and accounts across a restart', { skip: !process.env.ENGAGE_TEST_DATABASE_URL }, async () => {
+  const { openPostgresStore } = await import('../server/store.js');
+  let store = await openPostgresStore(process.env.ENGAGE_TEST_DATABASE_URL);
+  let app = createApp({ store });
+  await new Promise((r) => app.server.listen(0, r));
+  let url = `http://127.0.0.1:${app.server.address().port}`;
+  const email = `pg-${Date.now()}@example.com`;
+  const reg = await fetch(`${url}/api/auth/register`, { method: 'POST', body: JSON.stringify({ email, password: 'correct horse' }) });
+  const cookie = reg.headers.get('set-cookie').split(';')[0];
+  const made = await (await fetch(`${url}/api/meetings`, { method: 'POST', headers: { cookie }, body: JSON.stringify({ title: 'In Postgres' }) })).json();
+  await new Promise((r) => setTimeout(r, 3500));
+  await app.close();
+
+  store = await openPostgresStore(process.env.ENGAGE_TEST_DATABASE_URL);
+  app = createApp({ store });
+  await new Promise((r) => app.server.listen(0, r));
+  url = `http://127.0.0.1:${app.server.address().port}`;
+  assert.equal((await (await fetch(`${url}/api/meetings/${made.code}`)).json()).title, 'In Postgres');
+  assert.equal((await (await fetch(`${url}/api/auth/me`, { headers: { cookie } })).json()).email, email);
+  await fetch(`${url}/api/meetings/${made.code}`, { method: 'DELETE', headers: { cookie } });
+  await app.close();
+});
