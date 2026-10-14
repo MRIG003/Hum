@@ -83,7 +83,7 @@ This guide tells you what to read and in what order, which files make up the pro
 
 | File | What it is |
 |---|---|
-| `scripts/smoke.mjs` | **The "is it working" test.** Run it against your deployed address. 31 checks |
+| `scripts/smoke.mjs` | **The "is it working" test.** Run it against your deployed address. 41 checks |
 | `test/meeting.test.js`, `test/server.test.js` | 38 automated tests of the rules and the live connections |
 | `eslint.config.js` | Code style and error checks |
 | `.github/workflows/ci.yml` | Runs the checks automatically on GitHub for every change |
@@ -107,16 +107,16 @@ This guide tells you what to read and in what order, which files make up the pro
 
 - [ ] A GitHub account with access to the `mrig003/hum` repository. The code is on the branch `claude/practical-lovelace-u4w13f`.
 - [ ] A Render account (render.com). Any host that runs Docker containers also works (see "Other hosts" in step 4).
-- [ ] A computer with **Node.js 20 or newer** (to run the checks). Check with `node -v`.
+- [ ] A computer with **Node.js 22.5 or newer** (to run the checks). Check with `node -v`.
 - [ ] Optional: a custom domain, and a feedback form (for example a Google Form) whose link you will paste into `ENGAGE_SURVEY_URL`.
 - [ ] A person who will be on call during the first pilot meetings.
 
 **Important facts about this version**
 
-1. **Run exactly one copy.** Meetings live in the server's memory.
-2. **A restart or deploy ends every live meeting.** Deploy only when no meeting is running.
-3. **Meeting data is deleted 24 hours after a meeting ends.** There is no database.
-4. **There are no host accounts.** The host console is reached from the browser that created the meeting, or through the "Copy private host link" button.
+1. **Run exactly one copy.** The database is one file on one disk.
+2. **Meetings survive a restart or deploy.** They are saved every few seconds to a disk (`/data/engage.db`) and loaded again on start. Attendees reconnect on their own. Still deploy outside meeting hours.
+3. **Retention.** Meetings without a host account are deleted 24 hours after they end. Meetings owned by a host account are kept 30 days. The host can delete a meeting at any time.
+4. **Host accounts are optional.** A host can create one (email and password) to see "My meetings" and open a meeting from any browser. Without an account, the host console is reached from the browser that created the meeting, or through "Copy private host link". Attendees never need an account.
 
 ---
 
@@ -136,7 +136,7 @@ npm start              # leave this running. Expect: Engage running on http://lo
 In a second terminal:
 
 ```
-npm run smoke -- http://localhost:3000     # Expect: 31 of 31 checks passed. ALL CHECKS PASSED.
+npm run smoke -- http://localhost:3000     # Expect: 41 of 41 checks passed. ALL CHECKS PASSED.
 ```
 
 Then open http://localhost:3000 in a browser and do the manual check in section 5B. **If anything fails here, do not deploy yet.**
@@ -153,7 +153,7 @@ The code is on GitHub on the branch `claude/practical-lovelace-u4w13f`. Choose o
 1. In Render, choose **New**, then **Blueprint**.
 2. Connect your GitHub account and select the `hum` repository, then choose the branch from step 1.
 3. Render reads `render.yaml` and shows one service called `engage`. Choose **Apply**.
-4. When asked for `ENGAGE_SURVEY_URL`, paste your feedback form link, or leave it empty.
+4. When asked for `ENGAGE_SURVEY_URL`, paste your feedback form link, or leave it empty. When asked for `ENGAGE_PUBLIC_URL`, paste the address Render gives the service (for example `https://engage-xxxx.onrender.com`), or your own domain once it is connected. Render also creates a 1 GB disk for the database.
 5. Wait for the first build to finish (a few minutes). The service shows **Live** when the health check passes.
 
 Settings in `render.yaml` (change them in the Render dashboard if you prefer):
@@ -164,6 +164,8 @@ Settings in `render.yaml` (change them in the Render dashboard if you prefer):
 | Health check path | `/healthz` | Render restarts the service if this stops answering |
 | `TRUST_PROXY` | `1` | **Required.** Without it, every visitor looks like one address and the limit of 30 new meetings per hour applies to everyone together |
 | `ENGAGE_SURVEY_URL` | your form link | Shown on the host summary and attendee recap |
+| `ENGAGE_DB` | `/data/engage.db` | Where meetings and accounts are saved. The disk mounted at `/data` keeps them across restarts |
+| `ENGAGE_PUBLIC_URL` | your address | Used for QR codes and to mark sign-in cookies as secure |
 | Plan | `starter` | A paid plan that does not sleep. Check the current price on Render. **Free plans go to sleep, which would break meetings** |
 | Instances | **1** | Do not scale to more than one |
 
@@ -185,11 +187,15 @@ On your computer, in the `hum` folder:
 npm run smoke -- https://YOUR-ADDRESS
 ```
 
-You must see `31 of 31 checks passed.` and `ALL CHECKS PASSED. The server is working.` This test creates one throwaway meeting, so it counts toward the limit of 30 new meetings per hour.
+You must see `41 of 41 checks passed.` and `ALL CHECKS PASSED. The server is working.` This test creates one throwaway meeting, so it counts toward the limit of 30 new meetings per hour.
 
 ### Step 5. Do the manual check
 
-Follow section 5B on the live address, using two different browsers.
+Follow section 5B on the live address, using two different browsers. Then check the new parts:
+
+1. **Restart check.** Start a meeting, join from a second browser, then use **Manual Deploy, Restart** (or just restart the service) in Render. The host console and the attendee should reconnect on their own and keep their questions. If the meeting is gone, the disk is not attached (see the troubleshooting table).
+2. **QR check.** Press **Show on screen** and scan the code with a phone. It must open the join page.
+3. **Export and delete.** Press **Export CSV** and open the file. Then press **Delete meeting** and confirm the join link now says the meeting was not found.
 
 ### Step 6. Add a custom domain (optional)
 
@@ -219,7 +225,7 @@ Put it behind HTTPS (most platforms do this for you), allow **WebSocket** connec
 | Command | What it checks | You should see |
 |---|---|---|
 | `npm run check` | Code style (lint) and 38 tests of the rules, the live connections, pages and security headers | `# pass 38` and `# fail 0`, no lint errors |
-| `npm run smoke -- URL` | A real meeting against your live address: pages, security headers, create a meeting, host and attendee over a live connection, question, recall check with "Missed that", Focus, end, summary, coach summary, recap, refusing late joins | `31 of 31 checks passed` |
+| `npm run smoke -- URL` | A real meeting against your live address: pages, security headers, create a meeting, QR code, short address, CSV export, delete, host and attendee over a live connection, question, recall check with "Missed that", Focus, end, summary, coach summary, recap, refusing late joins | `41 of 41 checks passed` |
 
 **The smoke test lines, and what a failure means**
 
@@ -275,7 +281,7 @@ Use Chrome (or Edge) for the host, and a second browser such as Safari or Firefo
 | What you see | Likely cause | What to do |
 |---|---|---|
 | "Connection lost. Reconnecting" keeps appearing | The network or host is blocking WebSockets, or the server restarted | Test on another network. Confirm the host supports WebSockets. Check Logs for restarts |
-| Meeting vanished, "Meeting not found" | The server restarted or deployed. Meetings are in memory | Create a new meeting. Avoid deploys during meetings. Persistence is the next build |
+| Meeting vanished, "Meeting not found" | It was deleted, it passed its retention time, or `ENGAGE_DB` is not set or the disk is not attached, so a restart wiped it | Check the Render dashboard shows the disk and `ENGAGE_DB=/data/engage.db`. Check Logs for "Storing meetings in" at start |
 | "Too many meetings created" | The limit of 30 per hour per address. Usually `TRUST_PROXY` is not set | Set `TRUST_PROXY=1` and redeploy |
 | Host page says this browser is not the host | The secret is missing from this browser | Open the meeting using **Copy private host link** from the original host browser |
 | "The browser blocked the mini window" | Pop-up blocked | Allow pop-ups for the site and click again |
@@ -289,10 +295,10 @@ Use Chrome (or Edge) for the host, and a second browser such as Safari or Firefo
 
 ## 7. What this deployment does not give you
 
-- **No saved meetings.** A restart or deploy ends live meetings. Meeting data is dropped 24 hours after it ends.
+- **Saving is a snapshot, not a full log.** A crash can lose the last few seconds of activity. Back up the disk if results matter.
 - **One copy only.** It cannot be made redundant yet.
-- **No accounts.** No sign-in, no host history.
-- **No delete button.** Data cannot be deleted on request before the 24 hour limit.
+- **Accounts are basic.** No email check, no password reset, no single sign-on. A forgotten password cannot be recovered; the host can still use the private link of a meeting they have.
+- **Deleting is by the host.** Attendee data is not deletable on request by an individual attendee; ask the host.
 - **Not load tested.** The 200 person target is an estimate.
 - **Floating mini window in Chrome and Edge is untested in a real window.** The pop-up version is tested.
 - **The Render blueprint, Docker image and GitHub workflow have not been run** in this environment. Steps 2 to 4 above will tell you.

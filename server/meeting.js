@@ -1,4 +1,4 @@
-import { randomBytes, randomInt } from 'node:crypto';
+import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
 export const REACTIONS = ['agree', 'question', 'lost', 'fast', 'move_on'];
 
@@ -20,6 +20,12 @@ const NUDGE_MS = 30_000;
 const SUGGESTION_COOLDOWN_MS = 5 * 60_000;
 const RECALL_CAP_MS = 15 * 60_000;
 const RECALL_DEFAULT_SEC = 20;
+const MAX_PINNED = 3;
+const MAX_PROMPTS = 24;
+const MAX_PROMPTS_PER_TOPIC = 3;
+const TOPIC_NUDGE_BEFORE_MS = 60_000;
+const TOPIC_NUDGE_AFTER_MS = 5 * 60_000;
+const MOMENT_TYPES = ['poll', 'pulse', 'quiz', 'recall', 'wordcloud'];
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const POINTS = {
@@ -58,6 +64,16 @@ const shuffle = (items) => {
 
 const newId = (bytes = 6) => randomBytes(bytes).toString('hex');
 
+// Tokens are only ever stored as hashes, so a leaked database cannot be replayed.
+export const hashToken = (token) => createHash('sha256').update(String(token ?? '')).digest('hex');
+
+export const tokenMatches = (token, hash) => {
+  if (!token || !hash) return false;
+  const a = Buffer.from(hashToken(token), 'hex');
+  const b = Buffer.from(hash, 'hex');
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+
 export const newCode = () =>
   Array.from({ length: 6 }, () => CODE_ALPHABET[randomInt(CODE_ALPHABET.length)]).join('');
 
@@ -73,7 +89,10 @@ export class Meeting {
     this.clock = clock;
     this.sampleMs = sampleMs;
     this.code = code ?? newCode();
-    this.hostToken = newId(16);
+    this.hostToken = newId(16); // plaintext exists only in memory, handed out once at creation
+    this.hostTokenHash = hashToken(this.hostToken);
+    this.ownerId = null;
+    this.prompts = [];
     this.title = clean(title, 80) || 'Untitled meeting';
     this.agendaText = '';
     this.agendaSegments = [];
@@ -110,12 +129,12 @@ export class Meeting {
 
   // ---- participants -------------------------------------------------------
 
-  join({ name, anon, pid, token }) {
+  join({ name, anon, pid, token: presented }) {
     const now = this.clock();
     if (this.status !== 'live') throw new ActionError('This meeting has ended.');
 
     const existing = pid ? this.participants.get(pid) : null;
-    if (existing && existing.token === token) {
+    if (existing && tokenMatches(presented, existing.tokenHash)) {
       existing.connected = true;
       return existing;
     }
@@ -125,9 +144,11 @@ export class Meeting {
     const displayName = isAnon ? 'Anonymous' : clean(name, 30);
     if (!displayName) throw new ActionError('Enter a name or choose Anonymous.');
 
+    const token = newId(16);
     const participant = {
       id: newId(),
-      token: newId(16),
+      token, // returned to the browser once; never persisted
+      tokenHash: hashToken(token),
       name: displayName,
       anon: isAnon,
       joinedAt: now,
@@ -143,6 +164,14 @@ export class Meeting {
     };
     this.participants.set(participant.id, participant);
     return participant;
+  }
+
+  checkHostToken(token) {
+    return tokenMatches(token, this.hostTokenHash);
+  }
+
+  claim(userId) {
+    if (!this.ownerId) this.ownerId = userId;
   }
 
   setConnected(pid, connected) {
@@ -207,8 +236,11 @@ export class Meeting {
       text: body,
       authorPid: pid,
       author: hidden ? 'Anonymous' : p.name,
+      anon: hidden,
       votes: new Set(),
       answered: false,
+      pinned: false,
+      merged: 0,
       t: this.clock(),
     });
     this.#touch(p, 'question', POINTS.question, 'questions');
@@ -297,17 +329,14 @@ export class Meeting {
 
   // ---- host actions -------------------------------------------------------
 
-  launchMoment({ type, prompt, options = [], correct = null, durationSec = 0, auto = false, override = false }) {
-    this.#requireLive();
-    if (!['poll', 'pulse', 'quiz', 'recall', 'wordcloud'].includes(type)) {
-      throw new ActionError('Unknown moment type.');
-    }
+  #validateSpec({ type, prompt, options = [], correct = null }) {
+    if (!MOMENT_TYPES.includes(type)) throw new ActionError('Unknown moment type.');
     const text = clean(prompt, 160);
     if (!text) throw new ActionError('Add a question for the room.');
 
     let cleaned = [];
     if (type === 'poll' || type === 'quiz' || type === 'recall') {
-      cleaned = options.map((option) => clean(option, 80)).filter(Boolean).slice(0, 6);
+      cleaned = (Array.isArray(options) ? options : []).map((option) => clean(option, 80)).filter(Boolean).slice(0, 6);
       if (cleaned.length < 2) throw new ActionError('Add at least two options.');
     }
     let correctIndex = null;
@@ -317,6 +346,12 @@ export class Meeting {
         throw new ActionError('Mark the correct answer.');
       }
     }
+    return { type, text, cleaned, correctIndex };
+  }
+
+  launchMoment({ type, prompt, options = [], correct = null, durationSec = 0, auto = false, override = false }) {
+    this.#requireLive();
+    const { text, cleaned, correctIndex } = this.#validateSpec({ type, prompt, options, correct });
 
     const now = this.clock();
     if (type === 'recall' && !override && this.lastRecallAt && now - this.lastRecallAt < RECALL_CAP_MS) {
@@ -349,6 +384,74 @@ export class Meeting {
       this.events.push({ t: now, type: 'recall' });
     }
     this.suggestionsSuppressedUntil = now + SUGGESTION_COOLDOWN_MS;
+  }
+
+  // ---- prepared prompts (attached to agenda topics) ------------------------
+
+  #topicKey = (title) => clean(title, 40).toLowerCase();
+
+  addPrompt({ topic, type, prompt, options = [], correct = null, durationSec = 0 }) {
+    this.#requireLive();
+    const key = this.#topicKey(topic);
+    const segment = this.agendaSegments.find((seg) => this.#topicKey(seg.title) === key);
+    if (!segment) throw new ActionError('Pick a topic from the agenda first.');
+    if (this.prompts.length >= MAX_PROMPTS) throw new ActionError(`Up to ${MAX_PROMPTS} prepared prompts.`);
+    if (this.prompts.filter((item) => item.topic === key).length >= MAX_PROMPTS_PER_TOPIC) {
+      throw new ActionError(`Up to ${MAX_PROMPTS_PER_TOPIC} prompts per topic.`);
+    }
+    const spec = this.#validateSpec({ type, prompt, options, correct });
+    const seconds = Math.max(0, Math.min(600, Number.parseInt(durationSec, 10) || 0));
+    this.prompts.push({
+      id: newId(3),
+      topic: key,
+      type,
+      prompt: spec.text,
+      options: spec.cleaned,
+      correct: spec.correctIndex,
+      durationSec: seconds,
+      used: false,
+    });
+  }
+
+  removePrompt(id) {
+    this.prompts = this.prompts.filter((item) => item.id !== id);
+  }
+
+  launchPrepared(id, { override = false } = {}) {
+    const item = this.prompts.find((entry) => entry.id === id);
+    if (!item) throw new ActionError('That prompt is no longer prepared.');
+    this.launchMoment({
+      type: item.type,
+      prompt: item.prompt,
+      options: item.options,
+      correct: item.correct,
+      durationSec: item.durationSec,
+      override,
+    });
+    item.used = true;
+  }
+
+  #promptsForSegment(seg) {
+    const key = this.#topicKey(seg.title);
+    return this.prompts
+      .filter((item) => item.topic === key)
+      .map(({ id, type, prompt, used }) => ({ id, type, prompt, used }));
+  }
+
+  // The end-of-topic nudge: shown only to the host, never to attendees, and it does not
+  // wait for the 5-minute quiet period that follows other prompts.
+  topicNudge(now = this.clock()) {
+    if (this.status !== 'live' || this.focus || this.moment?.status === 'open') return null;
+    for (const seg of this.agendaSegments) {
+      const endsAt = this.startedAt + seg.endMin * 60_000;
+      if (now < endsAt - TOPIC_NUDGE_BEFORE_MS || now > endsAt + TOPIC_NUDGE_AFTER_MS) continue;
+      const key = this.#topicKey(seg.title);
+      const next = this.prompts.find((item) => item.topic === key && !item.used);
+      if (next) {
+        return { topic: seg.title, endsAt, promptId: next.id, type: next.type, prompt: next.prompt };
+      }
+    }
+    return null;
   }
 
   closeMoment() {
@@ -446,6 +549,29 @@ export class Meeting {
 
   removeQuestion(id) {
     this.questions = this.questions.filter((q) => q.id !== id);
+  }
+
+  pinQuestion(id, on = true) {
+    this.#requireLive();
+    const q = this.questions.find((item) => item.id === id);
+    if (!q) throw new ActionError('Question not found.');
+    if (on && !q.pinned && this.questions.filter((item) => item.pinned).length >= MAX_PINNED) {
+      throw new ActionError(`Pin up to ${MAX_PINNED} questions. Unpin one first.`);
+    }
+    q.pinned = Boolean(on);
+  }
+
+  // Folds a duplicate into another question: votes are combined, the duplicate disappears.
+  mergeQuestions(fromId, intoId) {
+    this.#requireLive();
+    if (fromId === intoId) throw new ActionError('Pick two different questions.');
+    const from = this.questions.find((item) => item.id === fromId);
+    const into = this.questions.find((item) => item.id === intoId);
+    if (!from || !into) throw new ActionError('Question not found.');
+    for (const pid of from.votes) into.votes.add(pid);
+    into.merged += 1 + from.merged;
+    into.pinned = into.pinned || from.pinned;
+    this.questions = this.questions.filter((item) => item.id !== fromId);
   }
 
   setQuiet(on, everyMin) {
@@ -628,6 +754,9 @@ export class Meeting {
     }
     this.agendaSegments = segments;
     this.agendaText = segments.map((s) => `${s.title}, ${s.minutes}`).join('\n');
+    // Prepared prompts follow their topic by title; prompts for a removed topic are dropped.
+    const keys = new Set(segments.map((seg) => this.#topicKey(seg.title)));
+    this.prompts = this.prompts.filter((item) => keys.has(item.topic));
   }
 
   #segmentAtMinute(minute) {
@@ -839,13 +968,19 @@ export class Meeting {
 
   #publicQuestions(viewerPid) {
     return [...this.questions]
-      .sort((a, b) => Number(a.answered) - Number(b.answered) || b.votes.size - a.votes.size || a.t - b.t)
+      .sort((a, b) =>
+        Number(a.answered) - Number(b.answered) ||
+        Number(b.pinned) - Number(a.pinned) ||
+        b.votes.size - a.votes.size ||
+        a.t - b.t)
       .map((q) => ({
         id: q.id,
         text: q.text,
         author: q.author,
         votes: q.votes.size,
         answered: q.answered,
+        pinned: q.pinned,
+        merged: q.merged,
         ...(viewerPid === null ? {} : { voted: q.votes.has(viewerPid), mine: q.authorPid === viewerPid }),
       }));
   }
@@ -919,6 +1054,114 @@ export class Meeting {
     };
   }
 
+  // ---- persistence ---------------------------------------------------------
+  // Snapshot of everything needed to resume the meeting. Tokens appear only as hashes, and
+  // anonymous questions drop their author link so a database can never reveal who asked.
+
+  serialize() {
+    return {
+      v: 1,
+      code: this.code,
+      title: this.title,
+      expected: this.expected,
+      ownerId: this.ownerId,
+      hostTokenHash: this.hostTokenHash,
+      agendaText: this.agendaText,
+      agendaSegments: this.agendaSegments,
+      prompts: this.prompts,
+      lastRecallAt: this.lastRecallAt,
+      createdAt: this.createdAt,
+      startedAt: this.startedAt,
+      status: this.status,
+      endedAt: this.endedAt,
+      participants: [...this.participants.values()].map((p) => ({
+        id: p.id,
+        tokenHash: p.tokenHash,
+        name: p.name,
+        anon: p.anon,
+        joinedAt: p.joinedAt,
+        lastActionAt: p.lastActionAt,
+        points: p.points,
+        counts: p.counts,
+        card: p.card,
+        marks: [...p.marks],
+        paidMarks: [...p.paidMarks],
+        lines: [...p.lines],
+        lastReactionAt: p.lastReactionAt,
+      })),
+      actions: this.actions,
+      reactionLog: this.reactionLog,
+      questions: this.questions.map((q) => ({
+        id: q.id,
+        text: q.text,
+        authorPid: q.anon ? null : q.authorPid,
+        author: q.author,
+        anon: q.anon,
+        votes: [...q.votes],
+        answered: q.answered,
+        pinned: q.pinned,
+        merged: q.merged,
+        t: q.t,
+      })),
+      series: this.series,
+      events: this.events,
+      lastSampleAt: this.lastSampleAt,
+      moment: this.moment
+        ? { ...this.moment, responses: [...this.moment.responses.entries()] }
+        : null,
+      momentHistory: this.momentHistory,
+      focus: this.focus,
+      gamesOpen: this.gamesOpen,
+      gameWindows: this.gameWindows,
+      bingoWords: this.bingoWords,
+      prediction: { ...this.prediction, answers: [...this.prediction.answers.entries()] },
+      quiet: this.quiet,
+      lastPulseAt: this.lastPulseAt,
+      suggestionsSuppressedUntil: this.suggestionsSuppressedUntil,
+    };
+  }
+
+  static restore(data, { clock = Date.now, sampleMs } = {}) {
+    const m = new Meeting({ code: data.code, title: data.title, expected: data.expected, clock, sampleMs });
+    m.hostToken = null;
+    m.hostTokenHash = data.hostTokenHash;
+    m.ownerId = data.ownerId ?? null;
+    m.agendaText = data.agendaText;
+    m.agendaSegments = data.agendaSegments;
+    m.prompts = data.prompts ?? [];
+    m.lastRecallAt = data.lastRecallAt ?? 0;
+    m.createdAt = data.createdAt;
+    m.startedAt = data.startedAt;
+    m.status = data.status;
+    m.endedAt = data.endedAt;
+    for (const p of data.participants) {
+      m.participants.set(p.id, {
+        ...p,
+        connected: false,
+        marks: new Set(p.marks),
+        paidMarks: new Set(p.paidMarks),
+        lines: new Set(p.lines),
+      });
+    }
+    m.actions = data.actions;
+    m.reactionLog = data.reactionLog;
+    m.questions = data.questions.map((q) => ({ ...q, authorPid: q.authorPid ?? null, votes: new Set(q.votes) }));
+    m.series = data.series;
+    m.events = data.events;
+    m.lastSampleAt = data.lastSampleAt;
+    m.moment = data.moment ? { ...data.moment, responses: new Map(data.moment.responses) } : null;
+    m.momentHistory = data.momentHistory;
+    m.focus = data.focus;
+    m.gamesOpen = data.gamesOpen;
+    m.gameWindows = data.gameWindows;
+    m.bingoWords = data.bingoWords;
+    m.prediction = { ...data.prediction, answers: new Map(data.prediction.answers) };
+    m.quiet = data.quiet;
+    m.lastPulseAt = data.lastPulseAt;
+    m.suggestionsSuppressedUntil = data.suggestionsSuppressedUntil;
+    return m;
+  }
+
   // ---- snapshots ----------------------------------------------------------
 
   hostSnapshot() {
@@ -928,7 +1171,12 @@ export class Meeting {
       role: 'host',
       code: this.code,
       title: this.title,
-      agenda: { text: this.agendaText, segments: this.agendaSegmentStats() },
+      agenda: {
+        text: this.agendaText,
+        segments: this.agendaSegmentStats().map((seg, i) => ({ ...seg, prompts: this.#promptsForSegment(this.agendaSegments[i]) })),
+      },
+      topicNudge: this.topicNudge(now),
+      owned: Boolean(this.ownerId),
       recallNextAt: this.lastRecallAt ? this.lastRecallAt + RECALL_CAP_MS : 0,
       status: this.status,
       now,

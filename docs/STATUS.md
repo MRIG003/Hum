@@ -16,6 +16,11 @@ Last updated: 13 October 2026. Tracks progress against `docs/architecture/engine
 | **ENG-003** Privacy and survey | Plain-language privacy page linked from join, landing and recap. Survey link set by `ENGAGE_SURVEY_URL` | |
 | **E0** Deployment files | Dockerfile, Render blueprint, health check, graceful shutdown, proxy-aware rate limits, deploy guide | **Not deployed.** Needs your hosting account. Docker build not run (no Docker daemon here). The files it copies were checked by running a copy |
 | **ENG-007, 008** CI and lint | GitHub Actions workflow (lint, tests, dependency audit, container build), ESLint | The workflow has not run on GitHub yet |
+| **E3** Persistence and recovery | Meetings, questions, results and the engagement series are saved to SQLite (`ENGAGE_DB`) every few seconds and on shutdown, and restored on start. Participants and the host reconnect on their own. Access tokens are stored as hashes. Anonymous questions store no author link | Snapshot-based, not an event log (simplification of ADR-4). Up to ~3 s of the latest activity can be lost in a crash. Needs a persistent disk when deployed. Browser-tested with a real restart; **not tested on Render** |
+| **Prompts per topic** | Hosts save polls, pulse, recall or word-cloud prompts under an agenda topic. A quiet host-only reminder appears from 1 minute before the topic ends until 5 minutes after, with one-click Launch or Not now. It ignores the pause that follows other prompts but respects Focus. The recall cap still applies | Prompts follow their topic by title; deleting a topic deletes its prompts |
+| **Quick wins** | QR code and short address ("Show on screen", `/ABC234`), CSV export (host-only, no names, formula-safe), pin up to 3 questions and merge duplicates | QR is made on the server. CSV is the only export format |
+| **E4** Host accounts and delete | Optional email and password accounts (scrypt, hashed sessions, secure cookie), My meetings page, owner opens a meeting without the private link, delete button on the live console, summary and My meetings page | No email verification or password reset. Accounts are for hosts only |
+| **Principles guard** | `test/principles.test.js` fails if a change adds sound or notifications, makes the mini window pop open for anything but a recall check, adds ranking, stores plaintext tokens or anonymous authors, shows coaching to attendees, or breaks dip suggestions and the coach summary | A guard, not proof of good design |
 | Accessibility | Three contrast defects fixed in the stylesheet (earlier in this project) | No formal audit yet |
 
 ## Not started
@@ -24,10 +29,8 @@ Last updated: 13 October 2026. Tracks progress against `docs/architecture/engine
 |---|---|
 | E1 TypeScript and workspace layout | Protocol safety. Planned for sprint 2 |
 | E2 Shared message schemas and validation | Same |
-| E3 Persistence and recovery | Today a restart ends every meeting. **Biggest remaining risk for pilots** |
-| E4 Host accounts | Host access still depends on a private link |
 | E5 React rebuild and design system components | The current UI is plain HTML and JavaScript. It works and is tested, but is not the planned structure |
-| E9 Security hardening beyond the basics, deletion flow | Host cannot delete a meeting yet. Data is dropped 24 hours after it ends |
+| E9 Security hardening beyond the basics | No email verification, password reset, SSO or admin controls on accounts yet. No external security review |
 | E10 Accessibility audit | Needs a manual screen reader pass |
 | E11 Load and chaos tests | Update size and capacity numbers are estimates until measured |
 | E12 Instrumentation and dashboards | Pilot metrics come from the host summary and the survey |
@@ -42,4 +45,4 @@ Last updated: 13 October 2026. Tracks progress against `docs/architecture/engine
 
 ## What to do next
 
-If pilot 1 goes ahead on this build, the next engineering priority is **E3 persistence**, because a restart or deploy during a meeting loses it. Then host accounts (E4) and the TypeScript and protocol work (E1, E2).
+If pilot 1 goes ahead on this build, deploy with the disk attached and run the restart check in `docs/deploy.md`. After the pilot, the planned next builds are one in-meeting app, ranking and free-text question types, then password reset and the TypeScript and protocol work (E1, E2).

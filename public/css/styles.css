@@ -98,7 +98,7 @@ button.selected { background: var(--accent-soft); border-color: var(--accent); c
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-input[type="text"], input[type="number"], textarea, select {
+input[type="text"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
   width: 100%;
   background: var(--surface);
   border: 1px solid var(--border-strong);
@@ -310,3 +310,12 @@ body.mini { padding: 0; background: var(--bg); overflow: hidden; }
 .mini-note { position: absolute; inset: 0; z-index: 2; background: color-mix(in srgb, var(--bg) 94%, transparent); display: grid; align-content: center; gap: 10px; padding: 18px; }
 .mini .react-bar button { padding: 6px 2px; font-size: 10.5px; min-height: 0; }
 .mini .bingo button { min-height: 44px; font-size: 11.5px; }
+
+/* ---------- topics, pinned questions, join screen ---------- */
+.q.pinned { border-color: var(--accent); background: var(--accent-soft); }
+.prepared { padding: 4px 0 4px 12px; border-left: 2px solid var(--border-strong); }
+.prepared.used { opacity: 0.65; }
+.join-dialog { border: 1px solid var(--border); border-radius: 16px; padding: 28px; text-align: center; background: var(--surface); color: var(--text); max-width: 420px; }
+.join-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+.join-dialog img { display: block; margin: 12px auto; background: #fff; padding: 8px; border-radius: 10px; }
+.join-short { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; margin: 6px 0; }

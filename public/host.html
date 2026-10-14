@@ -14,6 +14,7 @@
       <span class="title" id="title"></span>
     </div>
     <div class="row">
+      <a id="account" class="small" href="/login">Sign in</a>
       <span class="chip num" id="clock" title="Time since the meeting clock started">0:00</span>
       <button id="clock-reset" class="ghost small" title="Restart the meeting clock when the meeting actually begins">Meeting starts now</button>
       <button id="focus" data-action="focus" title="Pause all prompts and games for everyone">Focus moment</button>
@@ -42,7 +43,14 @@
           <button id="copy-link">Copy link</button>
           <button id="copy-message" class="primary">Copy chat message</button>
         </div>
-        <button id="copy-host-link" class="ghost small" title="Reopens this host console on another browser. Keep it private.">Copy private host link</button>
+        <div class="row">
+          <button id="show-join" title="Show a QR code and short address you can share on screen">Show on screen</button>
+          <button id="copy-host-link" class="ghost small" title="Reopens this host console on another browser. Keep it private.">Copy private host link</button>
+        </div>
+        <div class="row">
+          <button id="export-live" class="ghost small">Export CSV</button>
+          <button id="delete-live" class="ghost small">Delete meeting</button>
+        </div>
       </div>
     </section>
 
@@ -85,6 +93,10 @@
               <select id="f-correct"></select>
             </div>
             <p id="f-recall-note" class="small muted" hidden></p>
+            <div id="f-topic-wrap" hidden>
+              <label for="f-topic">When I press the button</label>
+              <select id="f-topic"></select>
+            </div>
             <div class="row">
               <div class="grow">
                 <label for="f-duration">Closes automatically</label>
@@ -96,7 +108,7 @@
                   <option value="0">when I close it</option>
                 </select>
               </div>
-              <button class="primary" type="submit" style="align-self: end">Launch</button>
+              <button class="primary" type="submit" id="f-submit" style="align-self: end">Launch</button>
             </div>
             <p id="f-error" class="small" style="color: var(--bad)" role="alert" hidden></p>
           </form>
@@ -194,6 +206,14 @@
   </main>
 
   <main id="ended" class="host-wrap" hidden></main>
+
+  <dialog id="join-dialog" class="join-dialog" aria-label="Join this meeting">
+    <h2>Join on your laptop</h2>
+    <img id="join-qr" alt="QR code that opens the join page" width="260" height="260">
+    <p class="join-short num" id="join-short"></p>
+    <p class="muted small">Or open the link in the meeting chat. No sign-up.</p>
+    <button id="join-close" class="primary" autofocus>Close</button>
+  </dialog>
 
   <script type="module" src="/js/host.js"></script>
 </body>

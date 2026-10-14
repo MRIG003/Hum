@@ -207,9 +207,9 @@ function renderQuestions() {
   $('#q-count').textContent = `${state.questions.filter((q) => !q.answered).length} open`;
   $('#questions').innerHTML = state.questions.length
     ? state.questions.map((q) => `
-      <div class="q ${q.answered ? 'answered' : ''}">
+      <div class="q ${q.answered ? 'answered' : ''} ${q.pinned ? 'pinned' : ''}">
         <button class="vote-btn ${q.voted ? 'selected' : ''}" data-vote="${esc(q.id)}" aria-pressed="${q.voted}" aria-label="Upvote"><span>▲</span><span class="n num">${q.votes}</span></button>
-        <div><div>${esc(q.text)}</div><div class="meta">${q.mine ? 'You' : esc(q.author)}${q.answered ? ' · answered' : ''}</div></div>
+        <div><div>${q.pinned ? '<span class="chip accent">Pinned by host</span> ' : ''}${esc(q.text)}</div><div class="meta">${q.mine ? 'You' : esc(q.author)}${q.answered ? ' · answered' : ''}</div></div>
         <span></span>
       </div>`).join('')
     : '<p class="muted small">No questions yet. Be the first.</p>';

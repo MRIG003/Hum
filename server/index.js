@@ -3,12 +3,20 @@ import { readFile } from 'node:fs/promises';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
+import qrcode from 'qrcode-generator';
 import { ActionError, Meeting, newCode } from './meeting.js';
+import { AuthError, createAuth } from './auth.js';
+import { meetingCsv } from './export.js';
+import { MemoryStore, openSqliteStore } from './store.js';
 
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT) || 3000;
 const MEETING_TTL_MS = 12 * 60 * 60_000;
-const ENDED_TTL_MS = 24 * 60 * 60_000;
+const HOUR_MS = 60 * 60_000;
+const FLUSH_MS = 3000;
+// Ended meetings are deleted after this many hours (accounts keep theirs longer).
+const retentionMs = () => (Number(process.env.ENGAGE_RETENTION_HOURS) || 24) * HOUR_MS;
+const accountRetentionMs = () => (Number(process.env.ENGAGE_ACCOUNT_RETENTION_DAYS) || 30) * 24 * HOUR_MS;
 const BROADCAST_DELAY_MS = 150;
 const MAX_MESSAGES_PER_SECOND = 25;
 
@@ -36,8 +44,22 @@ const clientIp = (req) => {
   return req.socket.remoteAddress ?? 'unknown';
 };
 
-export const createApp = ({ clock = Date.now } = {}) => {
+export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) => {
   const meetings = new Map();
+  const auth = createAuth({ store, clock });
+  const dirty = new Set();
+  for (const data of store.loadMeetings()) {
+    const restored = Meeting.restore(data, { clock });
+    meetings.set(restored.code, restored);
+  }
+
+  const flush = () => {
+    for (const code of dirty) {
+      const meeting = meetings.get(code);
+      if (meeting) store.saveMeeting(code, meeting.ownerId, meeting.serialize());
+    }
+    dirty.clear();
+  };
   const sockets = new Map(); // ws -> { code, role, pid, windowStart, count }
   const createLog = new Map(); // ip -> timestamps
 
@@ -63,6 +85,7 @@ export const createApp = ({ clock = Date.now } = {}) => {
   };
 
   const scheduleBroadcast = (code) => {
+    dirty.add(code);
     if (pending.has(code)) return;
     pending.add(code);
     setTimeout(() => {
@@ -84,6 +107,11 @@ export const createApp = ({ clock = Date.now } = {}) => {
     resolvePrediction: (m, msg) => m.resolvePrediction(msg.result),
     answered: (m, msg) => m.setQuestionAnswered(msg.id, msg.answered),
     removeQuestion: (m, msg) => m.removeQuestion(msg.id),
+    pin: (m, msg) => m.pinQuestion(msg.id, msg.on !== false),
+    merge: (m, msg) => m.mergeQuestions(msg.from, msg.into),
+    addPrompt: (m, msg) => m.addPrompt(msg),
+    removePrompt: (m, msg) => m.removePrompt(msg.id),
+    launchPrepared: (m, msg) => m.launchPrepared(msg.id, { override: Boolean(msg.override) }),
     quiet: (m, msg) => m.setQuiet(msg.on, msg.everyMin),
     floor: (m) => m.openTheFloor(),
     setAgenda: (m, msg) => m.setAgenda(msg.text),
@@ -106,9 +134,15 @@ export const createApp = ({ clock = Date.now } = {}) => {
     if (!meeting) return send(ws, { t: 'fatal', error: 'Meeting not found.' });
 
     if (msg.role === 'host') {
-      if (msg.hostToken !== meeting.hostToken) {
+      // A host proves themselves with the private host link (token) or by being signed in as
+      // the meeting's owner. Cookie auth also requires a same-origin upgrade (no cross-site hijack).
+      const user = sameOrigin(ws.req) ? auth.userFromRequest(ws.req) : null;
+      const byToken = meeting.checkHostToken(msg.hostToken);
+      const byOwner = Boolean(user && meeting.ownerId === user.id);
+      if (!byToken && !byOwner) {
         return send(ws, { t: 'fatal', error: 'This browser is not the host of this meeting.' });
       }
+      if (byToken && user) meeting.claim(user.id);
       sockets.set(ws, { code: meeting.code, role: 'host', pid: null, windowStart: 0, count: 0 });
       send(ws, { t: 'welcome', role: 'host' });
       return pushState(ws);
@@ -125,7 +159,7 @@ export const createApp = ({ clock = Date.now } = {}) => {
       t: 'welcome',
       role: 'attendee',
       pid: participant.id,
-      token: participant.token,
+      token: participant.token ?? msg.token,
       name: participant.name,
       anon: participant.anon,
     });
@@ -182,7 +216,8 @@ export const createApp = ({ clock = Date.now } = {}) => {
     }
   };
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws, req) => {
+    ws.req = req;
     ws.on('message', (raw) => handleMessage(ws, raw));
     ws.on('close', () => {
       const info = sockets.get(ws);
@@ -197,6 +232,42 @@ export const createApp = ({ clock = Date.now } = {}) => {
       }
     });
   });
+
+  const sameOrigin = (req) => {
+    const origin = req.headers.origin;
+    if (!origin) return true;
+    try {
+      return new URL(origin).host === req.headers.host;
+    } catch {
+      return false;
+    }
+  };
+
+  const isHttps = (req) =>
+    process.env.ENGAGE_PUBLIC_URL?.startsWith('https:') ||
+    (Boolean(process.env.TRUST_PROXY) && req.headers['x-forwarded-proto'] === 'https');
+
+  const publicBase = (req) =>
+    process.env.ENGAGE_PUBLIC_URL?.replace(/\/$/, '') ||
+    `${isHttps(req) ? 'https' : 'http'}://${req.headers.host ?? 'localhost'}`;
+
+  // The caller may manage a meeting if they hold the private host token or own it.
+  const canManage = (req, meeting) => {
+    if (meeting.checkHostToken(req.headers['x-host-token'])) return true;
+    const user = auth.userFromRequest(req);
+    return Boolean(user && meeting.ownerId === user.id);
+  };
+
+  const destroyMeeting = (code) => {
+    for (const [ws, info] of sockets) {
+      if (info.code !== code) continue;
+      send(ws, { t: 'fatal', error: 'This meeting was deleted by the host.' });
+      ws.close();
+    }
+    meetings.delete(code);
+    dirty.delete(code);
+    store.deleteMeeting(code);
+  };
 
   const readJson = (req) =>
     new Promise((resolve, reject) => {
@@ -221,8 +292,8 @@ export const createApp = ({ clock = Date.now } = {}) => {
       req.on('error', reject);
     });
 
-  const json = (res, status, body) => {
-    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+  const json = (res, status, body, headers = {}) => {
+    res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...SECURITY_HEADERS, ...headers });
     res.end(JSON.stringify(body));
   };
 
@@ -278,8 +349,75 @@ export const createApp = ({ clock = Date.now } = {}) => {
         let code = newCode();
         while (meetings.has(code)) code = newCode();
         const meeting = new Meeting({ code, title: body.title, expected: body.expected, agenda: body.agenda, clock });
+        const user = sameOrigin(req) ? auth.userFromRequest(req) : null;
+        if (user) meeting.claim(user.id);
         meetings.set(code, meeting);
+        dirty.add(code);
         return json(res, 201, { code, hostToken: meeting.hostToken });
+      }
+
+      if (pathname === '/api/auth/me' && req.method === 'GET') {
+        const user = auth.userFromRequest(req);
+        return json(res, 200, { email: user?.email ?? null });
+      }
+      if (req.method === 'POST' && /^\/api\/auth\/(register|login|logout)$/.test(pathname)) {
+        if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
+        const action = pathname.split('/').pop();
+        if (action === 'logout') {
+          auth.logout(req);
+          return json(res, 200, { ok: true }, { 'Set-Cookie': auth.clearCookie(isHttps(req)) });
+        }
+        const body = await readJson(req);
+        const result = action === 'register'
+          ? auth.register(body.email, body.password, clientIp(req))
+          : auth.login(body.email, body.password, clientIp(req));
+        return json(res, action === 'register' ? 201 : 200, { email: result.user.email }, {
+          'Set-Cookie': auth.cookie(result.token, isHttps(req)),
+        });
+      }
+      if (req.method === 'GET' && pathname === '/api/my/meetings') {
+        const user = auth.userFromRequest(req);
+        if (!user) return json(res, 401, { error: 'Not signed in.' });
+        const mine = [...meetings.values()]
+          .filter((m) => m.ownerId === user.id)
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .map((m) => ({ code: m.code, title: m.title, status: m.status, createdAt: m.createdAt, joined: m.participants.size }));
+        return json(res, 200, { email: user.email, meetings: mine });
+      }
+
+      const qrMatch = pathname.match(/^\/api\/qr\/([A-Za-z0-9]{6})\.svg$/);
+      if (req.method === 'GET' && qrMatch) {
+        const code = qrMatch[1].toUpperCase();
+        if (!meetings.has(code)) return json(res, 404, { error: 'Meeting not found.' });
+        const qr = qrcode(0, 'M');
+        qr.addData(`${publicBase(req)}/j/${code}`);
+        qr.make();
+        res.writeHead(200, { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+        return res.end(qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true }));
+      }
+
+      const csvMatch = pathname.match(/^\/api\/meetings\/([A-Za-z0-9]{6})\/export\.csv$/);
+      if (req.method === 'GET' && csvMatch) {
+        const meeting = meetings.get(csvMatch[1].toUpperCase());
+        if (!meeting) return json(res, 404, { error: 'Meeting not found.' });
+        if (!canManage(req, meeting)) return json(res, 403, { error: 'Only the host can export results.' });
+        res.writeHead(200, {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="engage-${meeting.code}.csv"`,
+          'Cache-Control': 'no-store',
+          ...SECURITY_HEADERS,
+        });
+        return res.end(meetingCsv(meeting));
+      }
+
+      const deleteMatch = pathname.match(/^\/api\/meetings\/([A-Za-z0-9]{6})$/);
+      if (req.method === 'DELETE' && deleteMatch) {
+        if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
+        const meeting = meetings.get(deleteMatch[1].toUpperCase());
+        if (!meeting) return json(res, 404, { error: 'Meeting not found.' });
+        if (!canManage(req, meeting)) return json(res, 403, { error: 'Only the host can delete a meeting.' });
+        destroyMeeting(meeting.code);
+        return json(res, 200, { ok: true });
       }
 
       const apiMatch = pathname.match(/^\/api\/meetings\/([A-Za-z0-9]{6})$/);
@@ -295,10 +433,19 @@ export const createApp = ({ clock = Date.now } = {}) => {
       }
 
       if (pathname === '/') return await servePage(res, 'index.html');
+      if (pathname === '/login') return await servePage(res, 'login.html');
+      if (pathname === '/meetings') return await servePage(res, 'meetings.html');
+      // Short address: /ABC234 goes to the join page when that meeting exists.
+      const shortMatch = pathname.match(/^\/([A-Za-z0-9]{6})$/);
+      if (shortMatch && meetings.has(shortMatch[1].toUpperCase())) {
+        res.writeHead(302, { Location: `/j/${shortMatch[1].toUpperCase()}`, 'Cache-Control': 'no-store' });
+        return res.end();
+      }
       if (/^\/h\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'host.html');
       if (/^\/j\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'join.html');
       return await serveStatic(res, pathname);
     } catch (error) {
+      if (error instanceof AuthError) return json(res, error.status, { error: error.message });
       console.error(error);
       if (!res.headersSent) json(res, 400, { error: 'Bad request.' });
     }
@@ -315,19 +462,33 @@ export const createApp = ({ clock = Date.now } = {}) => {
   const ticker = setInterval(() => {
     const now = clock();
     for (const [code, meeting] of meetings) {
-      if (meeting.status === 'live' && now - meeting.createdAt > MEETING_TTL_MS) meeting.end();
-      if (meeting.status === 'ended' && now - meeting.endedAt > ENDED_TTL_MS) {
+      if (meeting.status === 'live' && now - meeting.createdAt > MEETING_TTL_MS) {
+        meeting.end();
+        dirty.add(code);
+      }
+      const keepFor = meeting.ownerId ? accountRetentionMs() : retentionMs();
+      if (meeting.status === 'ended' && now - meeting.endedAt > keepFor) {
         meetings.delete(code);
+        dirty.delete(code);
+        store.deleteMeeting(code);
         continue;
       }
       if (meeting.tick(now)) scheduleBroadcast(code);
     }
   }, 1000);
   ticker.unref();
+  const flusher = setInterval(() => {
+    flush();
+    store.purgeSessions(clock());
+  }, FLUSH_MS);
+  flusher.unref();
 
   const close = () =>
     new Promise((resolve) => {
       clearInterval(ticker);
+      clearInterval(flusher);
+      flush();
+      store.close();
       for (const ws of wss.clients) ws.terminate();
       wss.close(() => server.close(() => resolve()));
     });
@@ -336,7 +497,10 @@ export const createApp = ({ clock = Date.now } = {}) => {
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const { server, close } = createApp();
+  const dbFile = process.env.ENGAGE_DB;
+  const store = dbFile ? await openSqliteStore(dbFile) : new MemoryStore();
+  console.log(dbFile ? `Storing meetings in ${dbFile}` : 'No ENGAGE_DB set: meetings live in memory only.');
+  const { server, close } = createApp({ store });
   server.listen(PORT, () => console.log(`Engage running on http://localhost:${PORT}`));
   // On deploys, close sockets so clients reconnect to the new instance.
   const shutdown = () => close().then(() => process.exit(0));

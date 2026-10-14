@@ -42,7 +42,8 @@
 
     <section class="card stack">
       <h2>How long data is kept</h2>
-      <p>During this pilot, meeting data is held in the server's memory and removed 24 hours after the meeting ends, or sooner if the server restarts. A planned release will keep meeting data for 30 days and let hosts delete it at any time.</p>
+      <p>Meeting data is saved on the server so a restart does not lose a meeting in progress. Access tokens are stored only as one-way hashes. When a question is asked anonymously, nothing that links it to the person is saved. Meetings started without a host account are deleted 24 hours after they end. Meetings that belong to a host account are kept for 30 days. The host can delete a meeting, and everything in it, at any time.</p>
+      <p>Hosts can optionally create an account with an email address and password, to keep their past meetings together. Attendees never need an account. The CSV export contains group results and question text, never names.</p>
     </section>
 
     <section class="card stack">

@@ -6,8 +6,19 @@ services:
     plan: starter
     healthCheckPath: /healthz
     autoDeploy: true
+    # Meetings and host accounts are stored here, so they survive restarts and deploys.
+    disk:
+      name: engage-data
+      mountPath: /data
+      sizeGB: 1
     envVars:
       - key: TRUST_PROXY
         value: "1"
       - key: ENGAGE_SURVEY_URL
         sync: false   # set to your feedback form link
+      - key: ENGAGE_DB
+        value: /data/engage.db
+      - key: ENGAGE_PUBLIC_URL
+        sync: false   # https://your-service.onrender.com (used for QR codes and secure cookies)
+      - key: ENGAGE_RETENTION_HOURS
+        value: "24"   # ended meetings without an account are deleted after this long

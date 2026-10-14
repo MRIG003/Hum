@@ -127,7 +127,7 @@ Estimates assume a team of about three people.
 | FR-1.2 | Engage shows a join link and a six-character code (letters and digits that avoid look-alikes) | P0 | Built |
 | FR-1.3 | Engage offers a ready-to-paste chat message and one-click copy for link and message | P0 | Built |
 | FR-1.4 | Host can restart the meeting clock when the meeting actually begins, which also clears the engagement chart | P1 | Built |
-| FR-1.5 | Host can reopen the host console from a different browser or device | P1 | Built (private host link, no accounts) |
+| FR-1.5 | Host can reopen the host console from a different browser or device | P1 | Built (private host link, or optional host account) |
 | FR-1.6 | Templates for common meeting types (standup, all-hands, review, workshop) that preload prompts and game windows | P2 | Planned |
 | FR-1.7 | Host enters an agenda with times, and Engage ties the chart to agenda segments | P1 | Built |
 
@@ -250,7 +250,7 @@ Estimates assume a team of about three people.
 
 | ID | Requirement | Pri | Status |
 |---|---|---|---|
-| FR-12.1 | Single sign-on and host accounts | P1 | Later (Phase 3) |
+| FR-12.1 | Single sign-on and host accounts | P1 | Host accounts built (email and password, My meetings, delete). Single sign-on later (Phase 3) |
 | FR-12.2 | Admin console: retention settings, allowed domains, disable features | P1 | Later (Phase 3) |
 | FR-12.3 | Recurring-meeting history and org-level aggregate trends | P2 | Later (Phase 3) |
 | FR-12.4 | In-meeting apps for Meet, Zoom, Teams. Speaker and presenter data | P1 | Later (Phase 2) |

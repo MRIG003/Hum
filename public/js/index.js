@@ -28,3 +28,10 @@ $('#join').addEventListener('submit', (event) => {
   const code = $('#code').value.trim().toUpperCase();
   if (/^[A-Z0-9]{6}$/.test(code)) location.href = `/j/${code}`;
 });
+
+fetch('/api/auth/me').then((r) => r.json()).then((me) => {
+  if (!me.email) return;
+  const a = $('#account');
+  a.textContent = 'My meetings';
+  a.href = '/meetings';
+}).catch(() => {});

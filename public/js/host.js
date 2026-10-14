@@ -2,6 +2,7 @@ import { $, $$, codeFromPath, connect, esc, formatClock, REACTION_LABELS, storag
 import { renderChart } from './chart.js';
 
 const code = codeFromPath();
+const PROMPT_TYPES = { poll: 'poll', pulse: 'pulse check', recall: 'recall check', quiz: 'quiz', wordcloud: 'word cloud' };
 const hashToken = new URLSearchParams(location.hash.slice(1)).get('t');
 if (hashToken) {
   storage.set(`engage.host.${code}`, hashToken);
@@ -23,14 +24,14 @@ const chatMessage = () =>
   `Code: ${code}. Open it in a second window or on your phone. No sign-up. ` +
   `Reactions, questions and quick polls only. The host sees group results, not who is idle.`;
 
-if (!hostToken) {
-  $('#fatal').textContent = 'This browser did not create this meeting, so it cannot host it. Start a new meeting from the home page.';
-  $('#fatal').hidden = false;
-  throw new Error('Missing host token');
-}
+// Without the private host link the server still lets the meeting's signed-in owner in by cookie.
+if (!hostToken) $('#copy-host-link').hidden = true;
+const authHeaders = () => (hostToken ? { 'x-host-token': hostToken } : {});
+let mergeFrom = null;
+const hiddenNudges = new Set();
 
 const socket = connect({
-  hello: () => ({ t: 'hello', role: 'host', code, hostToken }),
+  hello: () => ({ t: 'hello', role: 'host', code, hostToken: hostToken ?? undefined }),
   onState: (next) => {
     state = next;
     render();
@@ -105,6 +106,10 @@ function renderBanners() {
       return '';
     }).join('');
     parts.push(`<div class="banner warn suggestion"><div><b>Suggestion.</b> ${esc(suggestion.text)}</div><div class="row">${buttons}</div></div>`);
+  }
+  const nudge = state.topicNudge;
+  if (nudge && !hiddenNudges.has(nudge.promptId)) {
+    parts.push(`<div class="banner"><div><b>${esc(nudge.topic)} is wrapping up.</b> You prepared a ${esc(PROMPT_TYPES[nudge.type] ?? nudge.type)}: “${esc(nudge.prompt)}”</div><div class="row"><button class="primary" data-launch-prepared="${esc(nudge.promptId)}" data-type="${esc(nudge.type)}">Launch it</button><button class="ghost" data-hide-nudge="${esc(nudge.promptId)}">Not now</button></div></div>`);
   }
   if (state.floorOpen) {
     parts.push('<div class="banner"><span>The floor is open: everyone was invited to share their view on the next topic.</span></div>');
@@ -197,16 +202,27 @@ setInterval(updateCountdowns, 500);
 
 function renderQuestions() {
   $('#q-count').textContent = `${state.questions.filter((q) => !q.answered).length} open`;
+  const merging = mergeFrom && state.questions.some((q) => q.id === mergeFrom);
+  if (!merging) mergeFrom = null;
   $('#questions').innerHTML = state.questions.length
-    ? state.questions.map((q) => `
-      <div class="q ${q.answered ? 'answered' : ''}">
+    ? state.questions.map((q) => {
+      const mergeBtn = !merging
+        ? `<button data-merge-from="${esc(q.id)}" class="ghost small" title="Combine with a duplicate question">Merge…</button>`
+        : q.id === mergeFrom
+          ? '<button data-merge-cancel="1" class="small">Cancel merge</button>'
+          : `<button data-merge-into="${esc(q.id)}" class="primary small">Merge here</button>`;
+      return `
+      <div class="q ${q.answered ? 'answered' : ''} ${q.pinned ? 'pinned' : ''}">
         <div class="votes"><b class="num">${q.votes}</b><div class="meta">votes</div></div>
-        <div><div>${esc(q.text)}</div><div class="meta">${esc(q.author)}</div></div>
+        <div><div>${q.pinned ? '<span class="chip accent">Pinned</span> ' : ''}${esc(q.text)}</div><div class="meta">${esc(q.author)}${q.merged ? ` · ${q.merged + 1} similar combined` : ''}</div></div>
         <div class="row">
+          <button data-pin="${esc(q.id)}" data-value="${q.pinned ? '' : '1'}" class="ghost small" aria-pressed="${q.pinned}">${q.pinned ? 'Unpin' : 'Pin'}</button>
+          ${mergeBtn}
           <button data-answered="${esc(q.id)}" data-value="${q.answered ? '' : '1'}" class="small">${q.answered ? 'Reopen' : 'Answered'}</button>
           <button data-remove-q="${esc(q.id)}" class="ghost small" aria-label="Remove question">✕</button>
         </div>
-      </div>`).join('')
+      </div>`;
+    }).join('')
     : '<p class="muted small">No questions yet. They will appear here, ranked by votes.</p>';
 }
 
@@ -240,8 +256,14 @@ function renderAgenda() {
   if (!dirty.agenda && document.activeElement !== $('#ag-text')) $('#ag-text').value = state.agenda.text;
   const segs = state.agenda.segments;
   $('#ag-list').innerHTML = segs.length
-    ? segs.map((s) => `<div class="row spread"><span><b>${esc(s.title)}</b> <span class="muted num">${s.startMin} to ${s.endMin} min</span></span><span class="num muted">${s.avg === null ? 'no data yet' : `${s.avg}% avg`}</span></div>`).join('')
-    : '<p class="muted">No agenda yet. Add topics to see engagement by topic.</p>';
+    ? segs.map((s) => `<div class="stack" style="gap: 4px"><div class="row spread"><span><b>${esc(s.title)}</b> <span class="muted num">${s.startMin} to ${s.endMin} min</span></span><span class="num muted">${s.avg === null ? 'no data yet' : `${s.avg}% avg`}</span></div>${
+      (s.prompts ?? []).map((p) => `<div class="row spread prepared ${p.used ? 'used' : ''}"><span class="small">${p.used ? '✓ ' : ''}<span class="chip">${esc(PROMPT_TYPES[p.type] ?? p.type)}</span> ${esc(p.prompt)}</span><span class="row"><button class="small" data-launch-prepared="${esc(p.id)}" data-type="${esc(p.type)}">${p.used ? 'Launch again' : 'Launch'}</button><button class="ghost small" data-remove-prompt="${esc(p.id)}" aria-label="Remove prepared prompt">✕</button></span></div>`).join('')}</div>`).join('')
+    : '<p class="muted">No agenda yet. Add topics to see engagement by topic, and to prepare prompts for each topic.</p>';
+  const select = $('#f-topic');
+  const chosen = select.value;
+  select.innerHTML = '<option value="">Launch it now</option>' + segs.map((s) => `<option value="${esc(s.title)}">Save it for ${esc(s.title)}</option>`).join('');
+  if ([...select.options].some((o) => o.value === chosen)) select.value = chosen;
+  $('#f-topic-wrap').hidden = segs.length === 0;
   syncMomentForm();
 }
 
@@ -306,7 +328,7 @@ function renderSummary() {
 
   ended.innerHTML = `
     <div class="row spread"><div><h1>Meeting summary</h1><p class="muted">${esc(state.title)}</p></div>
-      <div class="row"><button id="copy-summary">Copy as text</button><button id="download-summary" class="primary">Download .md</button><a href="/"><button>New meeting</button></a></div></div>
+      <div class="row"><button id="copy-summary">Copy as text</button><button id="download-summary" class="primary">Download .md</button><button id="export-csv">Export CSV</button><a href="/"><button>New meeting</button></a><button id="delete-meeting" class="danger">Delete meeting</button></div></div>
     <div class="summary-grid">${tiles}</div>
     ${coach}
     <section class="card"><div class="card-head"><h2>Engagement over the meeting</h2></div><svg id="summary-chart" class="chart" role="img" aria-label="Engagement over time"></svg></section>
@@ -330,6 +352,8 @@ function renderSummary() {
     now: state.startedAt + s.durationMs,
     segments: s.agenda,
   });
+  $('#export-csv').onclick = exportCsv;
+  $('#delete-meeting').onclick = deleteMeeting;
   $('#copy-summary').onclick = () => copy(summaryText(s), 'Summary copied');
   $('#download-summary').onclick = () => {
     const blob = new Blob([summaryText(s)], { type: 'text/markdown' });
@@ -380,6 +404,16 @@ document.addEventListener('click', (event) => {
     act({ t: 'addWindow', startMin: elapsed, durationMin: 5, label: 'Break block' });
     act({ t: 'games', on: true });
   } else if (el.dataset.answered) act({ t: 'answered', id: el.dataset.answered, answered: el.dataset.value === '1' });
+  else if (el.dataset.pin) act({ t: 'pin', id: el.dataset.pin, on: el.dataset.value === '1' });
+  else if (el.dataset.mergeFrom) { mergeFrom = el.dataset.mergeFrom; renderQuestions(); }
+  else if (el.dataset.mergeCancel) { mergeFrom = null; renderQuestions(); }
+  else if (el.dataset.mergeInto) { act({ t: 'merge', from: mergeFrom, into: el.dataset.mergeInto }); mergeFrom = null; }
+  else if (el.dataset.launchPrepared) {
+    const capped = el.dataset.type === 'recall' && state.recallNextAt > socket.now();
+    const override = capped && confirm(`The next recall check is available in ${formatClock(state.recallNextAt - socket.now())}. Run it now anyway?`);
+    if (!capped || override) act({ t: 'launchPrepared', id: el.dataset.launchPrepared, override });
+  } else if (el.dataset.removePrompt) act({ t: 'removePrompt', id: el.dataset.removePrompt });
+  else if (el.dataset.hideNudge) { hiddenNudges.add(el.dataset.hideNudge); renderBanners(); }
   else if (el.dataset.removeQ) act({ t: 'removeQuestion', id: el.dataset.removeQ });
   else if (el.dataset.removeW) act({ t: 'removeWindow', id: el.dataset.removeW });
   else if (el.dataset.resolve) act({ t: 'resolvePrediction', result: el.dataset.resolve });
@@ -418,12 +452,15 @@ $('#moment-tabs').addEventListener('click', (event) => {
   if (!tab) return;
   momentKind = tab.dataset.kind;
   overrideArmed = false;
-  $('#moment-form button[type="submit"]').textContent = 'Launch';
+  $('#f-submit').textContent = $('#f-topic').value ? 'Save for topic' : 'Launch';
   $('#f-duration').value = momentKind === 'recall' ? '20' : '60';
   for (const t of $$('#moment-tabs button')) t.setAttribute('aria-selected', String(t === tab));
   syncMomentForm();
 });
 $('#f-options').addEventListener('input', syncMomentForm);
+$('#f-topic').addEventListener('change', () => {
+  $('#f-submit').textContent = $('#f-topic').value ? 'Save for topic' : 'Launch';
+});
 
 $('#moment-form').addEventListener('submit', (event) => {
   event.preventDefault();
@@ -436,6 +473,23 @@ $('#moment-form').addEventListener('submit', (event) => {
     return;
   }
   error.hidden = true;
+  const topic = $('#f-topic').value;
+  if (topic) {
+    act({
+      t: 'addPrompt',
+      topic,
+      type: momentKind,
+      prompt,
+      options,
+      correct: momentKind === 'recall' ? Number($('#f-correct').value) : null,
+      durationSec: Number($('#f-duration').value),
+    });
+    toast(`Saved for ${topic}. You will get a gentle reminder near the end of the topic.`);
+    $('#f-prompt').value = '';
+    $('#f-options').value = '';
+    syncMomentForm();
+    return;
+  }
   const capped = momentKind === 'recall' && state.recallNextAt > socket.now();
   if (capped && !overrideArmed) {
     overrideArmed = true;
@@ -497,5 +551,41 @@ $('#b-words').addEventListener('input', () => { dirty.bingo = true; });
 const sendQuiet = () => act({ t: 'quiet', on: $('#quiet-on').checked, everyMin: Number($('#quiet-every').value) });
 $('#quiet-on').addEventListener('change', sendQuiet);
 $('#quiet-every').addEventListener('change', sendQuiet);
+
+async function exportCsv() {
+  const res = await fetch(`/api/meetings/${code}/export.csv`, { headers: authHeaders() });
+  if (!res.ok) return toast('Could not export. Only the host can export results.');
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await res.blob()), download: `engage-${code}.csv` });
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function deleteMeeting() {
+  if (!confirm('Delete this meeting and all its results for good? This cannot be undone.')) return;
+  const res = await fetch(`/api/meetings/${code}`, { method: 'DELETE', headers: authHeaders() });
+  if (!res.ok) return toast('Could not delete the meeting.');
+  storage.remove(`engage.host.${code}`);
+  location.href = '/meetings';
+}
+
+$('#export-live').addEventListener('click', exportCsv);
+$('#delete-live').addEventListener('click', deleteMeeting);
+
+const joinDialog = $('#join-dialog');
+$('#show-join').addEventListener('click', () => {
+  $('#join-qr').src = `/api/qr/${code}.svg`;
+  $('#join-short').textContent = `${location.host}/${code}`;
+  joinDialog.showModal();
+});
+$('#join-close').addEventListener('click', () => joinDialog.close());
+
+fetch('/api/auth/me').then((r) => r.json()).then((me) => {
+  const a = $('#account');
+  if (me.email) {
+    a.textContent = 'My meetings';
+    a.href = '/meetings';
+    a.title = me.email;
+  } else a.href = `/login?next=${encodeURIComponent(location.pathname)}`;
+}).catch(() => {});
 
 syncMomentForm();

@@ -63,7 +63,7 @@ try {
   process.exit(1);
 }
 
-for (const path of ['/', '/privacy.html', '/css/styles.css', '/js/host.js', '/js/attendee.js', '/js/mini.js', '/js/views.js', '/favicon.svg']) {
+for (const path of ['/', '/privacy.html', '/css/styles.css', '/js/host.js', '/js/attendee.js', '/js/mini.js', '/js/views.js', '/js/login.js', '/js/meetings.js', '/favicon.svg']) {
   const r = await getStatus(path);
   check(`Page or file loads: ${path}`, r.status === 200, `status ${r.status}`);
 }
@@ -83,6 +83,14 @@ if (created.status !== 201) process.exit(1);
 const { code, hostToken } = await created.json();
 check('Meeting code has six characters', /^[A-Z0-9]{6}$/.test(code), code);
 check('Meeting can be looked up', (await getStatus(`/api/meetings/${code}`)).status === 200);
+check('QR code endpoint returns an SVG', (await getStatus(`/api/qr/${code}.svg`)).text.startsWith('<svg'));
+check('Short address redirects to the join page', (await fetch(`${base}/${code}`, { redirect: 'manual' })).status === 302);
+check('Results export needs the host token', (await getStatus(`/api/meetings/${code}/export.csv`)).status === 403);
+const csv = await fetch(`${base}/api/meetings/${code}/export.csv`, { headers: { 'x-host-token': hostToken } });
+check('Results export works for the host', csv.status === 200 && (await csv.text()).startsWith('section,item,metric,value'));
+check('Delete needs the host (refused without token)', (await fetch(`${base}/api/meetings/${code}`, { method: 'DELETE' })).status === 403);
+check('Sign-in pages load', (await getStatus('/login')).status === 200 && (await getStatus('/meetings')).status === 200);
+check('Not signed in by default', (await (await fetch(`${base}/api/auth/me`)).json()).email === null);
 check('Host page and join page load for this code', (await getStatus(`/h/${code}`)).status === 200 && (await getStatus(`/j/${code}`)).status === 200);
 
 // ---- 3. realtime
@@ -142,6 +150,10 @@ try {
   attendee?.ws.close();
   await sleep(100);
 }
+
+// ---- 4. clean up: the host deletes the smoke-test meeting
+const del = await fetch(`${base}/api/meetings/${code}`, { method: 'DELETE', headers: { 'x-host-token': hostToken } });
+check('Host can delete the meeting', del.status === 200 && (await getStatus(`/api/meetings/${code}`)).status === 404);
 
 const passed = results.filter((r) => r.ok).length;
 console.log(`\n${passed} of ${results.length} checks passed.`);

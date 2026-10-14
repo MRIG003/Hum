@@ -14,7 +14,7 @@ npm start          # http://localhost:3000
 npm run check      # lint and all tests
 ```
 
-Needs Node 20 or newer. There is no build step.
+Needs Node 22.5 or newer (for the built-in SQLite). There is no build step.
 
 Settings (environment variables):
 
@@ -51,7 +51,10 @@ To deploy for a pilot, see `docs/deploy.md`. For what is built and what is not, 
 
 ```
 server/meeting.js   Meeting state and rules (no I/O, fully unit tested)
-server/index.js     HTTP, static files, WebSocket wiring, rate limits
+server/index.js     HTTP, static files, WebSocket wiring, rate limits, QR, CSV, delete
+server/store.js     Memory and SQLite storage
+server/auth.js      Host accounts and sessions
+server/export.js    CSV export
 public/             Plain HTML, CSS and ES modules (no build). mini.js is the floating window
 test/               Unit tests and WebSocket integration tests
 docs/               Spec, plan, PRD, report
@@ -61,8 +64,8 @@ docs/architecture/  Technical architecture, engineering plan, diagrams
 
 ## Known limits (prototype)
 
-- Meetings live in server memory. Restarting the server ends all meetings. Raw data is dropped 24 hours after a meeting ends.
-- The host is identified by a token. "Copy private host link" lets the host reopen the console elsewhere. There are no accounts yet.
+- Set `ENGAGE_DB` to keep meetings across restarts (SQLite on a persistent disk). Without it, meetings live in memory only. Persistence saves snapshots every few seconds, not an event log.
+- Hosts are identified by a private link token, or by an optional email and password account (no email verification or password reset yet). Ended meetings are deleted after 24 hours, or 30 days for account holders. Hosts can delete a meeting any time.
 - The picture-in-picture version of the mini window has not been tested in a real Chrome or Edge window. The pop-up version is tested.
 - One server process only. Scaling out needs a shared store and a pub/sub layer.
-- No accounts, SSO, or admin controls yet. See the roadmap.
+- No SSO or admin controls yet. See the roadmap.
