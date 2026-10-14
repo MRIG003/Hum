@@ -218,6 +218,7 @@ function renderQuestions() {
 function renderGames() {
   const { gamesOpen, focus, card, prediction, windows } = state;
   const playable = gamesOpen && !focus;
+  $('#games-card').classList.toggle('idle', !playable);
   const chip = $('#games-chip');
   chip.textContent = focus ? 'Paused' : gamesOpen ? 'Open' : 'Closed';
   chip.className = `chip ${playable ? 'ok' : ''}`;

@@ -28,29 +28,27 @@
   <main id="live" class="host-wrap" hidden>
     <div id="banners" class="stack"></div>
 
-    <section class="card share" aria-label="Invite attendees">
-      <div class="stack">
-        <div class="row">
-          <h2>Invite attendees</h2>
-          <span class="chip">Attendees need no account</span>
-        </div>
-        <div class="link-box" id="link"></div>
-        <p class="small muted">Paste this into the meeting chat. Attendees open it in a second window.</p>
-      </div>
-      <div class="stack" style="justify-items: end">
+    <section class="card invite" aria-label="Invite attendees">
+      <div class="invite-id">
+        <span class="small muted">Meeting code</span>
         <div class="code" id="code" aria-label="Meeting code"></div>
-        <div class="row">
-          <button id="copy-link">Copy link</button>
-          <button id="copy-message" class="primary">Copy chat message</button>
-        </div>
-        <div class="row">
-          <button id="show-join" title="Show a QR code and short address you can share on screen">Show on screen</button>
-          <button id="copy-host-link" class="ghost small" title="Reopens this host console on another browser. Keep it private.">Copy private host link</button>
-        </div>
-        <div class="row">
-          <button id="export-live" class="ghost small">Export CSV</button>
-          <button id="delete-live" class="ghost small">Delete meeting</button>
-        </div>
+      </div>
+      <div class="invite-link">
+        <div class="link-box" id="link"></div>
+        <p class="small muted">Paste it in the meeting chat. Attendees open it in a second window, no account needed.</p>
+      </div>
+      <div class="row invite-actions">
+        <button id="copy-message" class="primary">Copy chat message</button>
+        <button id="show-join" title="Show a QR code and short address you can share on screen">Show on screen</button>
+        <details class="menu">
+          <summary class="button-like" aria-label="More actions">More</summary>
+          <div class="menu-pop">
+            <button id="copy-link" class="ghost">Copy link</button>
+            <button id="copy-host-link" class="ghost" title="Reopens this host console on another browser. Keep it private.">Copy private host link</button>
+            <button id="export-live" class="ghost">Export results (CSV)</button>
+            <button id="delete-live" class="ghost danger-text">Delete meeting</button>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -94,7 +92,7 @@
             </div>
             <p id="f-recall-note" class="small muted" hidden></p>
             <div id="f-topic-wrap" hidden>
-              <label for="f-topic">When I press the button</label>
+              <label for="f-topic">Use this prompt</label>
               <select id="f-topic"></select>
             </div>
             <div class="row">
@@ -124,7 +122,8 @@
 
       <div class="stack">
         <section class="card" aria-label="Reactions">
-          <div class="card-head"><h2>Reactions</h2><span class="small muted">last 2 minutes</span></div>
+          <div class="card-head"><h2>Reactions</h2><button data-action="floor" class="small" title="Invite everyone to share their view on the next topic">Open the floor</button></div>
+          <p class="small muted" style="margin: -4px 0 8px">Last 2 minutes</p>
           <div class="reaction-grid" id="reactions"></div>
         </section>
 
@@ -137,15 +136,12 @@
           <div id="ag-list" class="stack small" style="margin-top: 10px"></div>
         </section>
 
-        <section class="card" aria-label="Games">
-          <div class="card-head">
-            <h2>Games</h2>
-            <span class="chip" id="games-state"></span>
-          </div>
+        <details class="card fold" aria-label="Games and automation">
+          <summary><h2>Games and automation</h2><span class="chip" id="games-state"></span></summary>
+
           <div class="stack">
             <div class="row">
               <button id="games-toggle" data-action="games"></button>
-              <button data-action="floor" title="Invite everyone's view on the next topic">Open the floor</button>
             </div>
 
             <div>
@@ -183,9 +179,9 @@
               </form>
             </details>
           </div>
-        </section>
+        
 
-        <section class="card" aria-label="Automation">
+        
           <h2>Quiet mode</h2>
           <div class="stack">
             <label class="check"><input type="checkbox" id="quiet-on"> Run a pulse check automatically</label>
@@ -200,7 +196,8 @@
             </div>
             <p class="small muted">Each automatic pulse check is a 1 to 5 question that closes after 45 seconds.</p>
           </div>
-        </section>
+        
+        </details>
       </div>
     </div>
   </main>

@@ -261,7 +261,7 @@ function renderAgenda() {
     : '<p class="muted">No agenda yet. Add topics to see engagement by topic, and to prepare prompts for each topic.</p>';
   const select = $('#f-topic');
   const chosen = select.value;
-  select.innerHTML = '<option value="">Launch it now</option>' + segs.map((s) => `<option value="${esc(s.title)}">Save it for ${esc(s.title)}</option>`).join('');
+  select.innerHTML = '<option value="">Right now</option>' + segs.map((s) => `<option value="${esc(s.title)}">Later, near the end of ${esc(s.title)}</option>`).join('');
   if ([...select.options].some((o) => o.value === chosen)) select.value = chosen;
   $('#f-topic-wrap').hidden = segs.length === 0;
   syncMomentForm();
@@ -452,14 +452,14 @@ $('#moment-tabs').addEventListener('click', (event) => {
   if (!tab) return;
   momentKind = tab.dataset.kind;
   overrideArmed = false;
-  $('#f-submit').textContent = $('#f-topic').value ? 'Save for topic' : 'Launch';
+  $('#f-submit').textContent = $('#f-topic').value ? 'Save for later' : 'Launch';
   $('#f-duration').value = momentKind === 'recall' ? '20' : '60';
   for (const t of $$('#moment-tabs button')) t.setAttribute('aria-selected', String(t === tab));
   syncMomentForm();
 });
 $('#f-options').addEventListener('input', syncMomentForm);
 $('#f-topic').addEventListener('change', () => {
-  $('#f-submit').textContent = $('#f-topic').value ? 'Save for topic' : 'Launch';
+  $('#f-submit').textContent = $('#f-topic').value ? 'Save for later' : 'Launch';
 });
 
 $('#moment-form').addEventListener('submit', (event) => {
@@ -589,3 +589,10 @@ fetch('/api/auth/me').then((r) => r.json()).then((me) => {
 }).catch(() => {});
 
 syncMomentForm();
+
+// Close the "More" menu after choosing an action or clicking elsewhere.
+document.addEventListener('click', (event) => {
+  for (const menu of $$('.menu[open]')) {
+    if (!menu.contains(event.target) || event.target.closest('.menu-pop button')) menu.open = false;
+  }
+});
