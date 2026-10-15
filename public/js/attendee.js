@@ -41,7 +41,10 @@ const showFatal = (message) => {
 // ---- entry ----------------------------------------------------------------
 
 async function start() {
-  fetch('/api/config').then((r) => r.json()).then((c) => { surveyUrl = c.surveyUrl; }).catch(() => {});
+  fetch('/api/config').then((r) => r.json()).then((c) => {
+    surveyUrl = c.surveyUrl;
+    $('#build').textContent = `Participant view · build ${c.build}`;
+  }).catch(() => {});
   const response = await fetch(`/api/meetings/${code}`);
   if (!response.ok) return showFatal('We could not find that meeting. Check the code or link with the host.');
   const meeting = await response.json();
@@ -115,6 +118,7 @@ const act = (message) => socket?.send(message);
 // ---- rendering ------------------------------------------------------------
 
 function render() {
+  $('#role-chip').hidden = false;
   if (state.status === 'ended') return renderRecap();
   app.hidden = false;
   $('#fatal').hidden = true;

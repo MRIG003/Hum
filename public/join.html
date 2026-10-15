@@ -16,6 +16,7 @@
     <div class="row">
       <button id="pop-out" class="small" hidden title="Opens a small floating window you can place over the meeting">Mini window</button>
       <button id="presenting" class="small switch-btn" role="switch" aria-checked="false" hidden title="Closes the mini window and skips prompts while you share your screen">I'm presenting</button>
+      <span class="chip" id="role-chip" hidden>You are a participant</span>
       <span class="chip num" id="clock" hidden>0:00</span>
       <span class="chip accent num" id="points" hidden title="Only you can see your points">0 pts</span>
     </div>
@@ -118,6 +119,8 @@
   </main>
 
   <main id="recap" class="att-wrap" hidden></main>
+
+  <p class="small muted" id="build" style="text-align: center; padding: 0 0 16px"></p>
 
   <script type="module" src="/js/attendee.js"></script>
 </body>

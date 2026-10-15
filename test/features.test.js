@@ -408,3 +408,16 @@ test('the Meet SDK is served from our own origin and the panel reads the project
     delete process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER;
   }
 });
+
+test('the join link always serves the participant page, never the host console', async () => {
+  const { code } = await (await post('/api/meetings', { title: 'Roles' })).json();
+  const join = await (await fetch(`${base}/j/${code}`)).text();
+  const host = await (await fetch(`${base}/h/${code}`)).text();
+  assert.match(join, /\/js\/attendee\.js/);
+  assert.ok(!/\/js\/host\.js/.test(join) && !/id="live"/.test(join), 'no host console code on the join page');
+  assert.match(host, /\/js\/host\.js/);
+  const noStore = (await fetch(`${base}/j/${code}`)).headers.get('cache-control');
+  assert.equal(noStore, 'no-store');
+  const lower = await fetch(`${base}/${code.toLowerCase()}`, { redirect: 'manual' });
+  assert.equal(lower.headers.get('location'), `/j/${code}`, 'the short address also goes to the participant page');
+});

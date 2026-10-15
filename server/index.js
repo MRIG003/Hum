@@ -354,6 +354,7 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         return json(res, 200, {
           surveyUrl: process.env.ENGAGE_SURVEY_URL || null,
           googleCloudProjectNumber: process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER || null,
+          build: (process.env.RENDER_GIT_COMMIT || 'dev').slice(0, 7),
         });
       }
 
