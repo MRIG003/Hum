@@ -164,6 +164,24 @@ const tickCountdown = () => {
 };
 setInterval(tickCountdown, 500);
 
+// Meet frames this page without clipboard permission, so the modern API usually fails here.
+// Try it, then the older copy command, then show the link so it can be selected by hand.
+async function copyJoinLink() {
+  const text = `${location.origin}/j/${code}`;
+  try {
+    await navigator.clipboard.writeText(text);
+    return toast('Join link copied');
+  } catch { /* not allowed in this frame */ }
+  const box = $('#p-link');
+  box.value = text;
+  $('#p-link-box').hidden = false;
+  box.focus();
+  box.select();
+  let copied = false;
+  try { copied = document.execCommand('copy'); } catch { /* ignore */ }
+  toast(copied ? 'Join link copied' : 'Select the link below and copy it');
+}
+
 const pulse = () => socket?.send({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
 
 document.addEventListener('click', (event) => {
@@ -177,9 +195,8 @@ document.addEventListener('click', (event) => {
   else if (action === 'dismissMoment') socket.send({ t: 'dismissMoment' });
   else if (el.dataset.answered) socket.send({ t: 'answered', id: el.dataset.answered, answered: true });
   else if (el.dataset.prepared) socket.send({ t: 'launchPrepared', id: el.dataset.prepared });
-  else if (el.id === 'p-copy') {
-    navigator.clipboard?.writeText(`${location.origin}/j/${code}`).then(() => toast('Join link copied'), () => toast('Copy failed'));
-  } else if (el.id === 'p-end') {
+  else if (el.id === 'p-copy') copyJoinLink();
+  else if (el.id === 'p-end') {
     if (confirm('End the meeting for everyone and build the summary?')) socket.send({ t: 'end' });
   }
 });
