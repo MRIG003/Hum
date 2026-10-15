@@ -24,6 +24,7 @@ const setPanelToken = (meetingCode, token) => {
   try { sessionStorage.setItem(panelKey(meetingCode), token); } catch { /* storage can be blocked */ }
 };
 
+let activityClient = null;
 let code = null;
 let hostToken = null;
 let socket = null;
@@ -62,7 +63,10 @@ async function route(ctx) {
   const found = await lookup(ctx.key);
   if (found) {
     const token = getPanelToken(found.code);
-    if (token) return startHost(found.code, token, found.title);
+    if (token) {
+      activityClient = ctx.client;
+      return startHost(found.code, token, found.title);
+    }
     return goAttendee(found.code);
   }
   $('#panel-sub').textContent = ctx.meetingCode ?? '';
@@ -96,9 +100,9 @@ async function route(ctx) {
       return;
     }
     setPanelToken(body.code, body.hostToken);
-    // Invite the others in the call to open Engage. Failing here must not stop the host.
-    try { await ctx.client.startActivity(); } catch { /* the host can still invite people from Activities */ }
+    activityClient = ctx.client;
     startHost(body.code, body.hostToken, title);
+    inviteCall();
   });
 }
 
@@ -109,6 +113,7 @@ function startHost(meetingCode, token, title) {
   hostToken = token;
   $('#panel-sub').textContent = title ?? '';
   $('#p-console').href = `/h/${code}#t=${token}`;
+  $('#p-link').value = `${location.origin}/j/${code}`;
   show('state-host');
   socket = connect({
     hello: () => ({ t: 'hello', role: 'host', code, hostToken }),
@@ -185,12 +190,27 @@ async function copyJoinLink() {
   } catch { /* not allowed in this frame */ }
   const box = $('#p-link');
   box.value = text;
-  $('#p-link-box').hidden = false;
   box.focus();
   box.select();
   let copied = false;
   try { copied = document.execCommand('copy'); } catch { /* ignore */ }
   toast(copied ? 'Join link copied' : 'Select the link below and copy it');
+}
+
+// Asks Meet to invite everyone in the call to open Engage. People who cannot see the add-on
+// (it is not installed or published for them) will not get it, so say what happened.
+async function inviteCall() {
+  const status = $('#p-invite-status');
+  if (!activityClient) {
+    status.textContent = 'Open Engage from Activities in Meet to invite the call. For now, share the join link below.';
+    return;
+  }
+  try {
+    await activityClient.startActivity();
+    status.textContent = 'Invitation sent to the call. Anyone who does not see it can join with the link below.';
+  } catch (error) {
+    status.textContent = `Meet did not send the invitation (${error?.message || error?.errorType || 'unknown reason'}). Share the join link below instead.`;
+  }
 }
 
 const pulse = () => socket?.send({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
@@ -207,6 +227,7 @@ document.addEventListener('click', (event) => {
   else if (el.dataset.answered) socket.send({ t: 'answered', id: el.dataset.answered, answered: true });
   else if (el.dataset.prepared) socket.send({ t: 'launchPrepared', id: el.dataset.prepared });
   else if (el.id === 'p-copy') copyJoinLink();
+  else if (el.id === 'p-invite-btn') inviteCall();
   else if (el.id === 'p-end') {
     if (confirm('End the meeting for everyone and build the summary?')) socket.send({ t: 'end' });
   }

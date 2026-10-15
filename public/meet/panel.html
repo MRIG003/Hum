@@ -49,6 +49,16 @@
         <div class="tile"><div class="label">Here now</div><div class="value num" id="p-conn">0</div><div class="sub" id="p-conn-sub"></div></div>
       </div>
 
+      <section class="card stack" aria-label="Invite people" id="p-invite">
+        <h2>Invite people</h2>
+        <p class="small muted" id="p-invite-status">Others in this call can open Engage from Activities if the add-on is available to them. Anyone can join with this link.</p>
+        <input id="p-link" type="text" readonly aria-label="Join link">
+        <div class="row">
+          <button id="p-copy" class="small primary">Copy join link</button>
+          <button id="p-invite-btn" class="small" title="Sends the call an invitation to open Engage">Invite everyone in this call</button>
+        </div>
+      </section>
+
       <section class="card" aria-label="Quick actions">
         <h2>Ask the room</h2>
         <div class="row" style="margin-top: 8px">
@@ -72,15 +82,7 @@
 
       <section class="card stack" aria-label="More">
         <a id="p-console" class="button-like" target="_blank" rel="noopener noreferrer">Open the full console</a>
-        <div class="row">
-          <button id="p-copy" class="small">Copy join link</button>
-          <button id="p-end" class="small danger">End meeting</button>
-        </div>
-        <div id="p-link-box" hidden>
-          <label for="p-link" class="small muted">Select the link and copy it (Ctrl+C or Cmd+C)</label>
-          <input id="p-link" type="text" readonly>
-        </div>
-        <p class="small muted">Share the join link with anyone who is not using Google Meet.</p>
+        <button id="p-end" class="small danger">End meeting</button>
       </section>
     </div>
   </main>

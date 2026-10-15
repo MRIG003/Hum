@@ -21,7 +21,7 @@ const ended = $('#ended');
 const link = () => `${location.origin}/j/${code}`;
 const chatMessage = () =>
   `Join "${state?.title ?? 'our meeting'}" on Engage: ${link()}\n` +
-  (state?.platform === 'meet' ? 'In Google Meet you can also open Engage from the Activities button.\n' : '') +
+  (state?.platform === 'meet' ? 'If you have the Engage add-on, you can also open it from the Activities button in Meet.\n' : '') +
   `Code: ${code}. Open it in a second window or on your phone. No sign-up. ` +
   `Please join with your real name, as it appears in this meeting. Reactions, questions and quick polls only.`;
 
@@ -84,7 +84,7 @@ function render() {
 function renderTop() {
   $('#link').textContent = link();
   $('#invite-hint').textContent = state.platform === 'meet'
-    ? 'In Google Meet, start Engage from Activities and everyone joins automatically. Or paste this link in the chat.'
+    ? 'In Google Meet, people who have the add-on can open Engage from Activities. Everyone else joins with this link, so paste it in the chat.'
     : 'Paste it in the meeting chat. Attendees open it in a second window, no account needed.';
   $('#code').textContent = code;
   const focus = $('#focus');
