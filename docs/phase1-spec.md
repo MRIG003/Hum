@@ -13,7 +13,7 @@ Engage is a second-screen engagement layer for any video meeting (Meet, Zoom, Te
 1. **The meeting always wins.** Engage never competes with the speaker. Games yield to the meeting and pause on demand.
 2. **Engage only reports what Engage can measure.** No guessing who is "speaking" or "idle" in the video call. Engagement means actions taken inside Engage.
 3. **Transparent by default.** Attendees see, at join time, exactly what the host can see. No hidden tracking.
-4. **Aggregate first, named second, never ranked.** No leaderboards, no per-person idle timers, no "engagement scores" tied to a name.
+4. **(Superseded on 15 October 2026: hosts now see named quiet lists and per-person details, disclosed at join; see PRD FR-6.9 and PR-6.)** **Aggregate first, named second, never ranked.** No leaderboards, no per-person idle timers, no "engagement scores" tied to a name.
 5. **Invitations, never accusations.** Engage nudges the host to invite people. It does not flag people.
 6. **Zero friction.** No login, no install, under 10 seconds to join, laptop-first.
 7. **Hosts do almost nothing.** A meeting should run well with one tap to start.

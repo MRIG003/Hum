@@ -188,7 +188,8 @@ Estimates assume a team of about three people.
 | FR-6.6 | **Confusion suggestion:** with at least three people connected, "Lost me" plus "Too fast" in the last two minutes at or above 25% of the room (minimum two) shows a suggestion | P1 | Built |
 | FR-6.7 | Suggestions are suppressed for five minutes after the host launches a moment or opens the floor | P1 | Built |
 | FR-6.8 | **Open the floor:** a 30-second banner invites everyone, never named individuals, to share a view or question | P1 | Built |
-| FR-6.9 | The host never sees who is idle, quiet, or on another window. No such measurement exists | P0 | Built (by design) |
+| FR-6.9 | The host sees who has had no activity in Engage for a chosen time (3, 5, 10 or 15 minutes), by name, with minutes. It measures actions inside Engage only, never attention, and people who mark themselves as presenting are not counted. Decision of 15 October 2026, replacing the earlier no-per-person rule | P0 | Built |
+| FR-6.10 | The host can open any person's details: time in Engage, quiet stretches, activity every 5 minutes, reactions, which prompts they answered (never what they chose, including "Missed that"), and their questions. Points, bingo, predictions and notes stay private | P0 | Built |
 | FR-6.10 | Chart ties dips to agenda segments, for example "dipped during Budget" | P1 | Built |
 
 ### 8.7 Focus and presenter safety
@@ -295,7 +296,7 @@ Not collected in Phase 1: audio, video, screen content, transcripts, tab focus, 
 | PR-3 | The server never sends one attendee's points, card, answers or predictions to another | P0 | Built, covered by automated test |
 | PR-4 | Poll, pulse and word-cloud answers are shown to the host as group results only | P0 | Built |
 | PR-5 | Data retention is defined per meeting and deletable by the host on request | P0 | Planned |
-| PR-6 | A named per-person participation list for hosts does not exist. If ever added, it is off by default and disclosed at join | P0 | Built (not present) |
+| PR-6 | The named per-person participation list is always on and disclosed on the join page and the privacy page. Attendees never see other people's names or activity. Real names are required (no anonymous mode, placeholder names refused). "Missed that" and answer choices are never tied to a name | P0 | Built |
 | PR-7 | Join links are unguessable, with codes from a 32-character alphabet, and meetings expire (12 hours live, 24 hours after ending in the prototype) | P0 | Built |
 | PR-8 | Host identity is proven by a secret token held by the browser that created the meeting | P0 | Built (single browser only) |
 | PR-9 | Security headers on all pages (content security policy, no sniffing, no referrer), rate limits on message volume (25 per second per connection), meeting creation (30 per hour per address), and message size (8 KB) | P0 | Built |

@@ -3,7 +3,7 @@
 // or change the code, but do not just edit the test.
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join as join_ } from 'node:path';
 import { test } from 'node:test';
 import { Meeting } from '../server/meeting.js';
 import { meetingCsv } from '../server/export.js';
@@ -11,14 +11,14 @@ import { MemoryStore } from '../server/store.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const files = (dir, ext) =>
-  readdirSync(join(root, dir)).filter((f) => f.endsWith(ext)).map((f) => [`${dir}/${f}`, readFileSync(join(root, dir, f), 'utf8')]);
+  readdirSync(join_(root, dir)).filter((f) => f.endsWith(ext)).map((f) => [`${dir}/${f}`, readFileSync(join_(root, dir, f), 'utf8')]);
 const clientCode = [...files('public/js', '.js'), ...files('public', '.html')];
 
 const setup = () => {
   let now = 2_000_000;
   const meeting = new Meeting({ code: 'PRIN42', title: 'Principles', agenda: 'Intro, 10', clock: () => now });
   const named = meeting.join({ name: 'Priya Sharma' });
-  const quiet = meeting.join({ anon: true });
+  const quiet = meeting.join({ name: 'Dev Patel' });
   return { meeting, named, quiet, advance: (ms) => { now += ms; } };
 };
 
@@ -30,7 +30,7 @@ test('calm: no sound, notifications or vibration anywhere in the client', () => 
 });
 
 test('calm: the mini window starts as a pill and only an open recall check may expand it', () => {
-  const mini = readFileSync(join(root, 'public/js/mini.js'), 'utf8');
+  const mini = readFileSync(join_(root, 'public/js/mini.js'), 'utf8');
   assert.match(mini, /let mode = 'pill'/);
   const expands = [...mini.matchAll(/setMode\('card', true\)/g)];
   assert.equal(expands.length, 1, 'only one automatic expansion is allowed');
@@ -67,23 +67,41 @@ test('privacy: no ranking or leaderboard, and attendees never see anyone else\'s
   assert.ok(!view.includes(named.id), 'another attendee\'s id must not appear');
 });
 
-test('privacy: a store never holds a plaintext token or an anonymous asker', () => {
+test('privacy: a store never holds a plaintext token', () => {
   const { meeting, named } = setup();
-  meeting.ask(named.id, 'Is this the end of my role?', true);
+  meeting.ask(named.id, 'Is this the end of my role?');
   const store = new MemoryStore();
   store.saveMeeting(meeting.code, null, meeting.serialize());
   const stored = JSON.stringify([...store.meetings.values()]);
   assert.ok(!stored.includes(meeting.hostToken));
   assert.ok(!stored.includes(named.token));
-  const q = meeting.serialize().questions[0];
-  assert.equal(q.authorPid, null);
 });
 
-test('privacy: anonymous questions hide the author from the host, the room and the CSV', () => {
+test('transparency: people join with real names and are told exactly what the host can see', () => {
+  const join = readFileSync(join_(root, 'public/join.html'), 'utf8');
+  const privacy = readFileSync(join_(root, 'public/privacy.html'), 'utf8');
+  assert.ok(!/id="anon"|ask-anon/.test(join), 'there is no anonymous option');
+  assert.match(join, /real name/i);
+  assert.match(join, /when you last took part/i);
+  assert.match(join, /What the host cannot see/);
+  assert.match(privacy, /how long you have gone without any activity/i);
+  const { meeting } = setup();
+  assert.throws(() => meeting.join({ name: 'Anonymous' }), /real name/);
+});
+
+test('privacy: the host sees who answered a prompt, never what they chose (including "Missed that")', () => {
   const { meeting, named } = setup();
-  meeting.ask(named.id, 'Anonymous worry', true);
-  assert.equal(meeting.hostSnapshot().questions[0].author, 'Anonymous');
-  assert.ok(!JSON.stringify(meeting.hostSnapshot()).includes(named.id));
+  meeting.launchMoment({ type: 'recall', prompt: 'What changed?', options: ['A', 'B'], correct: 0 });
+  meeting.respond(named.id, meeting.moment.id, 'missed');
+  meeting.closeMoment();
+  const detail = JSON.stringify(meeting.personDetail(named.id));
+  assert.ok(!/missed|wrong|correct/i.test(detail));
+  assert.ok(!JSON.stringify(meeting.hostSnapshot().people).match(/missed|wrong|correct/i));
+});
+
+test('privacy: the CSV export never holds names', () => {
+  const { meeting, named } = setup();
+  meeting.ask(named.id, 'Who owns billing?');
   meeting.end();
   assert.ok(!meetingCsv(meeting).includes('Priya'));
 });

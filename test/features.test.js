@@ -42,15 +42,6 @@ test('serialize and restore round-trips a meeting, and tokens survive as hashes 
   assert.equal(again.id, a.id);
 });
 
-test('anonymous question authors are not stored with the question', () => {
-  const { meeting } = make();
-  const a = meeting.join({ name: 'Priya' });
-  meeting.ask(a.id, 'Is my job safe?', true);
-  const q = meeting.serialize().questions[0];
-  assert.equal(q.authorPid, null);
-  assert.equal(q.author, 'Anonymous');
-});
-
 test('SQLite store keeps meetings across a restart', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'engage-'));
   const file = join(dir, 'engage.db');
@@ -114,7 +105,7 @@ test('prepared prompts are host-only and the cap per topic holds', () => {
   const { meeting } = make();
   for (let i = 0; i < 3; i++) meeting.addPrompt({ topic: 'Intro', type: 'pulse', prompt: `p${i}` });
   assert.throws(() => meeting.addPrompt({ topic: 'Intro', type: 'pulse', prompt: 'p4' }), ActionError);
-  const a = meeting.join({ name: 'A' });
+  const a = meeting.join({ name: 'Ann Lee' });
   assert.equal(JSON.stringify(meeting.attendeeSnapshot(a.id)).includes('p0'), false);
 });
 
@@ -122,7 +113,7 @@ test('prepared prompts are host-only and the cap per topic holds', () => {
 
 test('pinned questions sort first and are capped at three', () => {
   const { meeting } = make();
-  const a = meeting.join({ name: 'A' });
+  const a = meeting.join({ name: 'Ann Lee' });
   for (const t of ['q1', 'q2', 'q3', 'q4']) meeting.ask(a.id, t);
   const ids = meeting.questions.map((q) => q.id);
   for (const id of ids.slice(0, 3)) meeting.pinQuestion(id, true);
@@ -136,9 +127,9 @@ test('pinned questions sort first and are capped at three', () => {
 
 test('merging combines votes without double counting and removes the duplicate', () => {
   const { meeting } = make();
-  const a = meeting.join({ name: 'A' });
-  const b = meeting.join({ name: 'B' });
-  const c = meeting.join({ name: 'C' });
+  const a = meeting.join({ name: 'Ann Lee' });
+  const b = meeting.join({ name: 'Bo Chan' });
+  const c = meeting.join({ name: 'Cy Wu' });
   meeting.ask(a.id, 'When is launch?');
   meeting.ask(b.id, 'Launch date?');
   const [first, second] = meeting.questions.map((q) => q.id);
@@ -157,9 +148,9 @@ test('merging combines votes without double counting and removes the duplicate',
 test('CSV export has results, neutralises formulas and never holds names', () => {
   const { meeting } = make();
   const a = meeting.join({ name: 'Priya Sharma' });
-  const b = meeting.join({ anon: true });
+  const b = meeting.join({ name: 'Dev Patel' });
   meeting.ask(a.id, '=HYPERLINK("http://evil","x"), is this ok?');
-  meeting.ask(b.id, 'Anonymous worry', true);
+  meeting.ask(b.id, 'Who owns billing?');
   meeting.launchMoment({ type: 'recall', prompt: 'What changed?', options: ['A', 'B'], correct: 0 });
   meeting.respond(a.id, meeting.moment.id, 'missed');
   meeting.closeMoment();
@@ -168,7 +159,7 @@ test('CSV export has results, neutralises formulas and never holds names', () =>
   assert.ok(csv.startsWith('section,item,metric,value'));
   assert.ok(csv.includes('missed_that,1'));
   assert.ok(csv.includes(`"'=HYPERLINK(""http://evil"",""x""), is this ok?"`));
-  assert.ok(!csv.includes('Priya'));
+  assert.ok(!csv.includes('Priya') && !csv.includes('Dev Patel'));
   assert.ok(!csv.includes(a.id));
 });
 
@@ -287,4 +278,76 @@ test('Postgres store keeps meetings and accounts across a restart', { skip: !pro
   assert.equal((await (await fetch(`${url}/api/auth/me`, { headers: { cookie } })).json()).email, email);
   await fetch(`${url}/api/meetings/${made.code}`, { method: 'DELETE', headers: { cookie } });
   await app.close();
+});
+
+// ---- people: quiet list and per-person detail --------------------------------------------
+
+test('people list shows who has been quiet and for how long, with presenters marked', () => {
+  const { meeting, advance } = make();
+  const a = meeting.join({ name: 'Priya Sharma' });
+  const b = meeting.join({ name: 'Dev Patel' });
+  const c = meeting.join({ name: 'Mei Chen' });
+  meeting.react(a.id, 'agree');
+  advance(7 * 60_000);
+  meeting.react(b.id, 'agree');
+  meeting.setPresenting(c.id, true);
+  const byName = Object.fromEntries(meeting.people().map((p) => [p.name, p]));
+  assert.equal(Math.floor(byName['Priya Sharma'].quietMs / 60_000), 7);
+  assert.equal(Math.floor(byName['Dev Patel'].quietMs / 60_000), 0);
+  assert.equal(byName['Mei Chen'].presenting, true);
+  assert.equal(byName['Mei Chen'].neverActed, true);
+  const order = meeting.people();
+  assert.ok(order[0].quietMs >= order[1].quietMs && order[1].quietMs >= order[2].quietMs, 'longest quiet comes first');
+  assert.equal(order.at(-1).name, 'Dev Patel');
+  meeting.setConnected(a.id, false);
+  assert.equal(meeting.people().at(-1).name, 'Priya Sharma', 'people who left sink below those still connected');
+});
+
+test('person detail: timeline, reactions, prompts answered, questions, and no answer content', () => {
+  const { meeting, advance } = make();
+  const a = meeting.join({ name: 'Priya Sharma' });
+  const b = meeting.join({ name: 'Dev Patel' });
+  meeting.react(a.id, 'lost');
+  meeting.ask(a.id, 'When is launch?');
+  meeting.launchMoment({ type: 'recall', prompt: 'What changed?', options: ['A', 'B'], correct: 0 });
+  meeting.respond(a.id, meeting.moment.id, 'missed');
+  meeting.closeMoment();
+  advance(12 * 60_000);
+  const d = meeting.personDetail(a.id);
+  assert.equal(d.name, 'Priya Sharma');
+  assert.equal(d.reactionsByKind.lost, 1);
+  assert.equal(d.counts.questions, 1);
+  assert.equal(d.answeredPrompts, 1);
+  assert.equal(d.prompts[0].status, 'answered', 'only that they answered, never what they chose');
+  assert.ok(!JSON.stringify(d).includes('missed'), '"Missed that" is never tied to a name');
+  assert.ok(d.timeline.length >= 3 && d.timeline[0].count >= 1);
+  assert.equal(d.questions[0].text, 'When is launch?');
+  assert.ok(d.longestQuietMs >= 12 * 60_000);
+  const e = meeting.personDetail(b.id);
+  assert.equal(e.answeredPrompts, 0);
+  assert.equal(e.prompts[0].status, 'none');
+  assert.throws(() => meeting.personDetail('nope'), ActionError);
+});
+
+test('people are host-only: attendees never receive other names or activity', () => {
+  const { meeting } = make();
+  const a = meeting.join({ name: 'Priya Sharma' });
+  const b = meeting.join({ name: 'Dev Patel' });
+  meeting.react(a.id, 'agree');
+  const attendeeView = JSON.stringify(meeting.attendeeSnapshot(b.id));
+  assert.ok(!attendeeView.includes('Priya') && !attendeeView.includes('"people"') && !attendeeView.includes('quietMs'));
+  assert.ok(meeting.hostSnapshot().people.some((p) => p.name === 'Priya Sharma'));
+});
+
+test('serialize keeps responses and presenting so detail survives a restart', () => {
+  const { meeting } = make();
+  const a = meeting.join({ name: 'Priya Sharma' });
+  meeting.launchMoment({ type: 'pulse', prompt: 'How is it?' });
+  meeting.respond(a.id, meeting.moment.id, 4);
+  meeting.closeMoment();
+  meeting.setPresenting(a.id, true);
+  const back = Meeting.restore(JSON.parse(JSON.stringify(meeting.serialize())));
+  const d = back.personDetail(a.id);
+  assert.equal(d.answeredPrompts, 1);
+  assert.equal(d.presenting, true);
 });

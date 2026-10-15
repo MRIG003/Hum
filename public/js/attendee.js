@@ -63,11 +63,11 @@ function join() {
       pid: identity?.pid,
       token: identity?.token,
       name: identity?.name,
-      anon: identity?.anon,
     }),
     onWelcome: (msg) => {
-      identity = { pid: msg.pid, token: msg.token, name: msg.name, anon: msg.anon };
+      identity = { pid: msg.pid, token: msg.token, name: msg.name };
       storage.set(identityKey, identity);
+      if (presenting) socket?.send({ t: 'presenting', on: true });
     },
     onState: (next) => {
       state = next;
@@ -75,6 +75,16 @@ function join() {
     },
     onFatal: (message) => {
       storage.remove(identityKey);
+      if (!identity?.pid && gate) {
+        // A name that was not accepted: let the person fix it instead of ending up on a dead page.
+        socket?.close();
+        identity = null;
+        gate.hidden = false;
+        $('#join-error').textContent = message;
+        $('#join-error').hidden = false;
+        $('#name').focus();
+        return;
+      }
       showFatal(message);
     },
     onError: (message) => toast(message),
@@ -86,20 +96,16 @@ function join() {
 
 $('#join-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  const anon = $('#anon').checked;
   const name = $('#name').value.trim();
   const error = $('#join-error');
-  if (!anon && !name) {
-    error.textContent = 'Enter your first name or choose to join anonymously.';
+  if (name.length < 2) {
+    error.textContent = 'Enter your name as it appears in the meeting.';
     error.hidden = false;
     return;
   }
-  identity = { name, anon };
+  error.hidden = true;
+  identity = { name };
   join();
-});
-
-$('#anon').addEventListener('change', (event) => {
-  $('#name').disabled = event.target.checked;
 });
 
 const act = (message) => socket?.send(message);
@@ -141,6 +147,7 @@ function setPresenting(on) {
     skipped = 0;
     mini.close();
   }
+  socket?.send({ t: 'presenting', on });
   if (state) {
     renderBanners();
     renderMiniButton();
@@ -362,7 +369,7 @@ $('#ask-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const text = $('#ask-text').value.trim();
   if (!text) return;
-  act({ t: 'ask', text, anon: $('#ask-anon').checked });
+  act({ t: 'ask', text });
   $('#ask-text').value = '';
 });
 

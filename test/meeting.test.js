@@ -8,12 +8,17 @@ const makeMeeting = () => {
   return { meeting, advance: (ms) => { now += ms; }, now: () => now };
 };
 
-const join = (meeting, name) => meeting.join({ name });
+const join = (meeting, name) => meeting.join({ name: name.length < 2 ? `${name}. Tester` : name });
 
-test('join requires a name unless anonymous', () => {
+test('join requires a real name: no empty, one-letter or placeholder names, and no anonymous mode', () => {
   const { meeting } = makeMeeting();
   assert.throws(() => meeting.join({ name: '  ' }), ActionError);
-  assert.equal(meeting.join({ anon: true }).name, 'Anonymous');
+  assert.throws(() => meeting.join({ name: 'A' }), ActionError);
+  for (const fake of ['Anonymous', 'anon', 'Guest', 'unknown', 'test']) {
+    assert.throws(() => meeting.join({ name: fake }), /real name/, fake);
+  }
+  assert.throws(() => meeting.join({ anon: true }), ActionError);
+  assert.equal(meeting.join({ name: '  Priya   Sharma ' }).name, 'Priya Sharma');
 });
 
 test('rejoin with the same token keeps the participant', () => {
@@ -57,14 +62,14 @@ test('reactions are rate limited per kind', () => {
   assert.throws(() => meeting.react(a.id, 'nope'), ActionError);
 });
 
-test('questions: anonymous author hidden, upvotes toggle, answered sinks', () => {
+test('questions: shown with the asker\'s name, upvotes toggle, answered sinks', () => {
   const { meeting } = makeMeeting();
   const a = join(meeting, 'Priya');
   const b = join(meeting, 'Dev');
-  meeting.ask(a.id, 'When is the freeze?', true);
+  meeting.ask(a.id, 'When is the freeze?');
   meeting.ask(b.id, 'Who owns billing?');
   const [first, second] = meeting.questions;
-  assert.equal(first.author, 'Anonymous');
+  assert.equal(first.author, 'Priya');
   assert.equal(second.author, 'Dev');
   meeting.upvote(a.id, second.id);
   meeting.upvote(b.id, second.id);
@@ -73,19 +78,6 @@ test('questions: anonymous author hidden, upvotes toggle, answered sinks', () =>
   assert.equal(meeting.questions[1].votes.size, 1);
   meeting.setQuestionAnswered(second.id);
   assert.equal(meeting.hostSnapshot().questions.at(-1).id, second.id);
-});
-
-test('anonymous question author is never exposed in host or attendee snapshots', () => {
-  const { meeting } = makeMeeting();
-  const a = join(meeting, 'Priya');
-  const b = join(meeting, 'Dev');
-  meeting.ask(a.id, 'Secret?', true);
-  const host = JSON.stringify(meeting.hostSnapshot());
-  const other = JSON.stringify(meeting.attendeeSnapshot(b.id));
-  assert.ok(!host.includes('Priya'));
-  assert.ok(!other.includes('Priya'));
-  assert.ok(!host.includes(a.id));
-  assert.ok(!other.includes(a.id));
 });
 
 test('poll: one answer each, results hidden from attendees until closed', () => {

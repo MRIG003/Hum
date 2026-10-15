@@ -117,12 +117,14 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     setAgenda: (m, msg) => m.setAgenda(msg.text),
     resetClock: (m) => m.resetClock(),
     removeParticipant: (m, msg) => m.removeParticipant(msg.pid),
+    person: (m, msg) => ({ t: 'person', detail: m.personDetail(msg.pid) }),
     end: (m) => m.end(),
   };
 
   const attendeeActions = {
     react: (m, pid, msg) => m.react(pid, msg.kind),
-    ask: (m, pid, msg) => m.ask(pid, msg.text, msg.anon),
+    ask: (m, pid, msg) => m.ask(pid, msg.text),
+    presenting: (m, pid, msg) => m.setPresenting(pid, msg.on),
     upvote: (m, pid, msg) => m.upvote(pid, msg.id),
     respond: (m, pid, msg) => m.respond(pid, msg.momentId, msg.value),
     bingo: (m, pid, msg) => m.markBingo(pid, msg.word),
@@ -150,7 +152,6 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
 
     const participant = meeting.join({
       name: msg.name,
-      anon: msg.anon,
       pid: msg.pid,
       token: msg.token,
     });
@@ -161,7 +162,6 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
       pid: participant.id,
       token: participant.token ?? msg.token,
       name: participant.name,
-      anon: participant.anon,
     });
     pushState(ws);
     scheduleBroadcast(meeting.code);
@@ -199,7 +199,8 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
       if (info.role === 'host') {
         const handler = hostActions[msg.t];
         if (!handler) return;
-        handler(meeting, msg);
+        const reply = handler(meeting, msg);
+        if (reply?.t) return send(ws, reply);
       } else {
         const handler = attendeeActions[msg.t];
         if (!handler) return;

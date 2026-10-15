@@ -31,20 +31,20 @@
       </div>
       <form id="join-form" class="stack" autocomplete="off">
         <div>
-          <label for="name">Your first name</label>
-          <input id="name" type="text" maxlength="30" placeholder="Priya">
+          <label for="name">Your name</label>
+          <input id="name" type="text" maxlength="60" placeholder="Priya Sharma" autocomplete="name">
+          <p class="small muted" style="margin-top: 6px">Use your real name, the same as in the meeting, so the host can follow up with you.</p>
         </div>
-        <label class="check"><input id="anon" type="checkbox"> Join anonymously</label>
         <div class="disclosure">
           <b>What the host can see</b>
           <ul>
-            <li>How many people joined and how many took part</li>
-            <li>Group results for polls, pulse checks and reactions</li>
-            <li>Your questions, with your name unless you post anonymously</li>
+            <li>Your name, and when you last took part in Engage</li>
+            <li>What you did in Engage: reactions, questions and your answers to prompts</li>
+            <li>Whether you marked yourself as presenting</li>
           </ul>
           <b>What the host cannot see</b>
           <ul>
-            <li>Who is idle, quiet, or looking at another window</li>
+            <li>Your video, audio, screen, or which other windows you have open</li>
             <li>Your points, bingo card, predictions or notes</li>
           </ul>
         </div>
@@ -82,7 +82,7 @@
           <form id="ask-form" class="stack" autocomplete="off">
             <input id="ask-text" type="text" maxlength="280" placeholder="Type a question" aria-label="Your question">
             <div class="row spread">
-              <label class="check small"><input id="ask-anon" type="checkbox"> Post anonymously</label>
+              <span class="small muted">Shown with your name</span>
               <button class="primary" type="submit">Ask</button>
             </div>
           </form>

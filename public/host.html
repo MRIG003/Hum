@@ -67,6 +67,24 @@
       <div class="legend"><span>Share of connected people with an Engage action in the last 5 minutes. Shaded bands are agenda topics.</span></div>
     </section>
 
+    <section class="card" aria-label="People who have been quiet">
+      <div class="card-head">
+        <h2>Who has been quiet</h2>
+        <div class="row">
+          <label class="small muted" for="quiet-after" style="margin: 0">No Engage activity for</label>
+          <select id="quiet-after" style="width: auto">
+            <option value="3">3 min</option>
+            <option value="5" selected>5 min</option>
+            <option value="10">10 min</option>
+            <option value="15">15 min</option>
+          </select>
+          <button id="people-all" class="small ghost" aria-pressed="false">Show everyone</button>
+        </div>
+      </div>
+      <div id="people-list" class="people"></div>
+      <p class="small muted">Engage only sees what people do inside Engage, so quiet does not mean not listening. People who marked themselves as presenting are not counted. Select a name for their details.</p>
+    </section>
+
     <div class="host-grid">
       <div class="stack">
         <section class="card" aria-label="Launch a moment">
@@ -203,6 +221,11 @@
   </main>
 
   <main id="ended" class="host-wrap" hidden></main>
+
+  <dialog id="person-dialog" class="person-dialog" aria-label="Person details">
+    <div id="person-body"></div>
+    <div class="row" style="justify-content: flex-end; margin-top: 14px"><button id="person-close" class="primary">Close</button></div>
+  </dialog>
 
   <dialog id="join-dialog" class="join-dialog" aria-label="Join this meeting">
     <h2>Join on your laptop</h2>

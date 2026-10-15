@@ -61,7 +61,7 @@ export const REACTION_LABELS = {
  * Open a websocket that reconnects with backoff and re-sends `hello` each time.
  * Keeps a server clock offset so timers match the server.
  */
-export const connect = ({ hello, onState, onWelcome, onFatal, onError, onStatus }) => {
+export const connect = ({ hello, onState, onWelcome, onFatal, onError, onStatus, onMessage }) => {
   let ws = null;
   let attempt = 0;
   let closedByUs = false;
@@ -86,6 +86,7 @@ export const connect = ({ hello, onState, onWelcome, onFatal, onError, onStatus 
         fatal = true;
         onFatal?.(msg.error);
       } else if (msg.t === 'error') onError?.(msg.error);
+      else onMessage?.(msg);
     });
     ws.addEventListener('close', () => {
       if (closedByUs || fatal) return;

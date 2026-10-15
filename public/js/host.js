@@ -22,7 +22,7 @@ const link = () => `${location.origin}/j/${code}`;
 const chatMessage = () =>
   `Join "${state?.title ?? 'our meeting'}" on Engage: ${link()}\n` +
   `Code: ${code}. Open it in a second window or on your phone. No sign-up. ` +
-  `Reactions, questions and quick polls only. The host sees group results, not who is idle.`;
+  `Please join with your real name, as it appears in this meeting. Reactions, questions and quick polls only.`;
 
 // Without the private host link the server still lets the meeting's signed-in owner in by cookie.
 if (!hostToken) $('#copy-host-link').hidden = true;
@@ -42,6 +42,9 @@ const socket = connect({
     live.hidden = true;
   },
   onError: (message) => toast(message),
+  onMessage: (msg) => {
+    if (msg.t === 'person') showPerson(msg.detail);
+  },
   onStatus: (status) => {
     $('#conn').hidden = status === 'online';
   },
@@ -68,6 +71,7 @@ function render() {
   renderBanners();
   renderTiles();
   renderChartCard();
+  renderPeople();
   renderMoment();
   renderQuestions();
   renderReactions();
@@ -272,6 +276,87 @@ function renderQuiet() {
   if (document.activeElement !== $('#quiet-every')) $('#quiet-every').value = String(state.quiet.everyMin);
 }
 
+
+// ---- people: who has been quiet, and per-person detail -----------------------------
+
+let quietAfterMin = Number(storage.get('engage.quietAfter')) || 5;
+let showEveryone = false;
+
+const minutesText = (ms) => {
+  const m = Math.floor(ms / 60_000);
+  return m < 1 ? '< 1 min' : `${m} min`;
+};
+
+function renderPeople() {
+  const select = $('#quiet-after');
+  if (document.activeElement !== select) select.value = String(quietAfterMin);
+  const people = state.people ?? [];
+  const limit = quietAfterMin * 60_000;
+  const quiet = people.filter((p) => p.connected && !p.presenting && p.quietMs >= limit);
+  const rows = showEveryone ? people : quiet;
+  $('#people-all').setAttribute('aria-pressed', String(showEveryone));
+  $('#people-all').textContent = showEveryone ? 'Show only quiet' : `Show everyone (${people.length})`;
+
+  if (!rows.length) {
+    $('#people-list').innerHTML = `<p class="muted">${people.length
+      ? `Everyone connected has taken part in the last ${quietAfterMin} minutes.`
+      : 'Nobody has joined yet.'}</p>`;
+    return;
+  }
+  $('#people-list').innerHTML = rows.map((p) => {
+    const status = !p.connected ? 'Left the meeting window'
+      : p.presenting ? 'Presenting'
+        : p.neverActed ? `No activity since joining, ${minutesText(p.quietMs)} ago`
+          : `No activity for ${minutesText(p.quietMs)}`;
+    const tone = !p.connected ? '' : p.presenting ? 'accent' : p.quietMs >= limit ? 'warn' : 'ok';
+    return `<button class="person-row" data-person="${esc(p.id)}"><b>${esc(p.name)}</b><span class="chip ${tone}">${esc(status)}</span><span class="muted small num">${p.actions} ${p.actions === 1 ? 'action' : 'actions'}</span></button>`;
+  }).join('');
+}
+
+const STATUS_LABEL = { answered: 'Answered', none: 'Did not answer' };
+
+function showPerson(d) {
+  const maxBar = Math.max(1, ...d.timeline.map((t) => t.count));
+  const reactions = Object.entries(REACTION_LABELS)
+    .map(([kind, { emoji, label }]) => `<div class="reaction-tile"><b class="num">${d.reactionsByKind[kind] ?? 0}</b>${emoji} ${esc(label)}</div>`).join('');
+  const prompts = d.prompts.length
+    ? d.prompts.map((p) => `<div class="row spread" style="padding: 5px 0; border-top: 1px solid var(--border)"><span class="small">${esc(p.prompt)}</span><span class="chip ${p.status === 'none' ? 'warn' : 'ok'}">${STATUS_LABEL[p.status]}</span></div>`).join('')
+    : '<p class="muted small">No prompts were run while they were here.</p>';
+  const questions = d.questions.length
+    ? d.questions.map((q) => `<div class="small" style="padding: 4px 0">“${esc(q.text)}” <span class="muted">${q.votes} ${q.votes === 1 ? 'vote' : 'votes'}${q.answered ? ', answered' : ''}</span></div>`).join('')
+    : '<p class="muted small">Asked no questions.</p>';
+  $('#person-body').innerHTML = `
+    <div class="row spread"><h2>${esc(d.name)}</h2><span class="chip ${d.connected ? 'ok' : ''}">${d.presenting ? 'Presenting' : d.connected ? 'In the meeting window' : 'Left the meeting window'}</span></div>
+    <div class="tiles" style="margin-top: 12px">
+      <div class="tile"><div class="label">Time in Engage</div><div class="value num">${d.minutesIn} min</div></div>
+      <div class="tile"><div class="label">Quiet right now</div><div class="value num">${minutesText(d.quietMs)}</div><div class="sub">${d.lastActionAt ? 'since their last action' : 'since joining'}</div></div>
+      <div class="tile"><div class="label">Longest quiet stretch</div><div class="value num">${minutesText(d.longestQuietMs)}</div></div>
+    </div>
+    <h3 style="margin-top: 16px">Activity every 5 minutes</h3>
+    <div class="bars" role="img" aria-label="Actions per 5 minutes">${d.timeline.map((t) => `<div class="bar-col"><span style="height:${Math.round((t.count / maxBar) * 100)}%" title="${t.count}"></span><small>${t.fromMin}</small></div>`).join('')}</div>
+    <p class="small muted">Minutes since the meeting clock started. Taller means more actions in Engage.</p>
+    <h3 style="margin-top: 14px">Reactions</h3><div class="reaction-grid">${reactions}</div>
+    <h3 style="margin-top: 14px">Prompts (${d.answeredPrompts} of ${d.prompts.length} answered)</h3>${prompts}
+    <h3 style="margin-top: 14px">Questions</h3>${questions}
+    <p class="small muted" style="margin-top: 12px">Engage only sees actions inside Engage. Points, bingo cards, predictions and notes stay private to each person.</p>`;
+  if (!$('#person-dialog').open) $('#person-dialog').showModal();
+}
+
+$('#person-close').addEventListener('click', () => $('#person-dialog').close());
+$('#quiet-after').addEventListener('change', () => {
+  quietAfterMin = Number($('#quiet-after').value);
+  storage.set('engage.quietAfter', quietAfterMin);
+  renderPeople();
+});
+$('#people-all').addEventListener('click', () => {
+  showEveryone = !showEveryone;
+  renderPeople();
+});
+document.addEventListener('click', (event) => {
+  const row = event.target.closest('[data-person]');
+  if (row) act({ t: 'person', pid: row.dataset.person });
+});
+
 // ---- summary --------------------------------------------------------------
 
 const summaryText = (s) => {
@@ -326,11 +411,14 @@ function renderSummary() {
     s.coach.insights.length ? s.coach.insights.map((i, n) => `<div class="q" style="grid-template-columns: 28px 1fr; margin-top: 8px"><b class="chip accent" style="justify-content:center">${n + 1}</b><div><div><b>${esc(i.title)}</b></div><div class="muted small">${esc(i.detail)}</div></div></div>`).join('') : '<p class="muted" style="margin-top: 8px">Nothing needs attention. Engagement held up well.</p>'}<div class="tile" style="margin-top: 10px"><div class="label">Try this next time</div><div>${esc(s.coach.next)}</div></div></section>`;
   const agendaCard = s.agenda.length ? `<section class="card"><h2>Engagement by topic</h2>${s.agenda.map((a) => `<div class="bar-row" style="grid-template-columns: minmax(80px, 34%) 1fr 56px"><span>${esc(a.title)}</span><div class="bar"><span style="width:${a.avg ?? 0}%"></span></div><span class="num">${a.avg === null ? '–' : a.avg + '%'}</span></div>`).join('')}</section>` : '';
 
+  const peopleCard = s.people?.length ? `<section class="card"><div class="card-head"><h2>People</h2><span class="chip">Only you can see this</span></div><div class="people" style="margin-top: 8px">${s.people.map((p) => `<button class="person-row" data-person="${esc(p.id)}"><b>${esc(p.name)}</b><span class="chip ${p.actions ? 'ok' : 'warn'}">${p.actions ? `${p.actions} ${p.actions === 1 ? 'action' : 'actions'}` : 'No activity'}</span><span class="muted small">Longest quiet stretch ${esc(minutesText(p.longestQuietMs))}</span></button>`).join('')}</div><p class="small muted" style="margin-top: 8px">Select a name for their details. Engage only sees actions inside Engage.</p></section>` : '';
+
   ended.innerHTML = `
     <div class="row spread"><div><h1>Meeting summary</h1><p class="muted">${esc(state.title)}</p></div>
       <div class="row"><button id="copy-summary">Copy as text</button><button id="download-summary" class="primary">Download .md</button><button id="export-csv">Export CSV</button><a href="/"><button>New meeting</button></a><button id="delete-meeting" class="danger">Delete meeting</button></div></div>
     <div class="summary-grid">${tiles}</div>
     ${coach}
+    ${peopleCard}
     <section class="card"><div class="card-head"><h2>Engagement over the meeting</h2></div><svg id="summary-chart" class="chart" role="img" aria-label="Engagement over time"></svg></section>
     <div class="host-grid">
       <section class="card"><h2>Moments</h2>${moments}</section>

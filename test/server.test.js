@@ -74,16 +74,16 @@ test('host and attendees see each other live', async () => {
   const { code, hostToken } = await createMeeting();
   const host = await open({ t: 'hello', role: 'host', code, hostToken });
   const priya = await open({ t: 'hello', role: 'attendee', code, name: 'Priya' });
-  const anon = await open({ t: 'hello', role: 'attendee', code, anon: true });
+  const dev = await open({ t: 'hello', role: 'attendee', code, name: 'Dev Patel' });
 
   await host.until((m) => m.t === 'state' && m.state.counts.connected === 2);
   priya.send({ t: 'react', kind: 'lost' });
   priya.send({ t: 'ask', text: 'Who owns billing?' });
-  anon.send({ t: 'ask', text: 'Is this hidden?', anon: true });
+  dev.send({ t: 'ask', text: 'Is this shown with my name?' });
 
   const state = (await host.until((m) => m.t === 'state' && m.state.questions.length === 2)).state;
   assert.equal(state.reactions.lost, 1);
-  assert.deepEqual(state.questions.map((q) => q.author).sort(), ['Anonymous', 'Priya']);
+  assert.deepEqual(state.questions.map((q) => q.author).sort(), ['Dev Patel', 'Priya']);
   assert.equal(state.engagement.pct, 100);
   assert.equal(state.counts.participated, 2);
   assert.ok(!JSON.stringify(state).includes('token'));
@@ -95,8 +95,8 @@ test('host and attendees see each other live', async () => {
 
   host.send({ t: 'focus', on: true });
   await priya.until((m) => m.t === 'state' && m.state.focus === true);
-  anon.send({ t: 'respond', momentId: view.moment.id, value: 1 });
-  assert.match((await anon.until((m) => m.t === 'error')).error, /Focus/);
+  dev.send({ t: 'respond', momentId: view.moment.id, value: 1 });
+  assert.match((await dev.until((m) => m.t === 'error')).error, /Focus/);
 });
 
 test('attendees can reconnect with their token and keep their identity', async () => {
@@ -113,7 +113,7 @@ test('attendees can reconnect with their token and keep their identity', async (
 test('ending a meeting stops joins and gives the host a summary', async () => {
   const { code, hostToken } = await createMeeting();
   const host = await open({ t: 'hello', role: 'host', code, hostToken });
-  const a = await open({ t: 'hello', role: 'attendee', code, name: 'A' });
+  const a = await open({ t: 'hello', role: 'attendee', code, name: 'Ann Lee' });
   await a.until((m) => m.t === 'state');
   host.send({ t: 'end' });
   const ended = await host.until((m) => m.t === 'state' && m.state.status === 'ended');
@@ -142,7 +142,7 @@ test('config endpoint exposes the survey link only when set', async () => {
 test('host can set an agenda and attendees see the current topic', async () => {
   const { code, hostToken } = await createMeeting();
   const host = await open({ t: 'hello', role: 'host', code, hostToken });
-  const a = await open({ t: 'hello', role: 'attendee', code, name: 'A' });
+  const a = await open({ t: 'hello', role: 'attendee', code, name: 'Ann Lee' });
   await a.until((m) => m.t === 'state');
   host.send({ t: 'setAgenda', text: 'Intro, 5\nBudget, 20' });
   const state = (await host.until((m) => m.t === 'state' && m.state.agenda.segments.length === 2)).state;
@@ -154,7 +154,7 @@ test('host can set an agenda and attendees see the current topic', async () => {
 test('recall check over the socket: missed answer, group result, cap error', async () => {
   const { code, hostToken } = await createMeeting();
   const host = await open({ t: 'hello', role: 'host', code, hostToken });
-  const a = await open({ t: 'hello', role: 'attendee', code, name: 'A' });
+  const a = await open({ t: 'hello', role: 'attendee', code, name: 'Ann Lee' });
   await a.until((m) => m.t === 'state');
   const recall = { t: 'launchMoment', type: 'recall', prompt: 'Which?', options: ['X', 'Y'], correct: 1 };
   host.send(recall);

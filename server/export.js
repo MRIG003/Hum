@@ -1,6 +1,6 @@
 // CSV export of a meeting's results. Long format (section, item, metric, value) so it opens
-// cleanly in a spreadsheet. It contains no names and no per-person data: only aggregates,
-// prompt results and question text. Anonymous question authors are never present.
+// cleanly in a spreadsheet. It holds group results and question text only: no names and no
+// per-person data. Per-person detail is shown to the host in the console, not exported.
 
 const cell = (value) => {
   let text = String(value ?? '');

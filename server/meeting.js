@@ -25,6 +25,7 @@ const MAX_PROMPTS = 24;
 const MAX_PROMPTS_PER_TOPIC = 3;
 const TOPIC_NUDGE_BEFORE_MS = 60_000;
 const TOPIC_NUDGE_AFTER_MS = 5 * 60_000;
+const PLACEHOLDER_NAMES = /^(anon(ymous)?|guest|unknown|user|test|nobody|na|n\/a|none|me|someone)$/i;
 const MOMENT_TYPES = ['poll', 'pulse', 'quiz', 'recall', 'wordcloud'];
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -106,6 +107,7 @@ export class Meeting {
 
     this.participants = new Map();
     this.actions = [];
+    this.responseLog = [];
     this.reactionLog = [];
     this.questions = [];
     this.series = [];
@@ -129,7 +131,7 @@ export class Meeting {
 
   // ---- participants -------------------------------------------------------
 
-  join({ name, anon, pid, token: presented }) {
+  join({ name, pid, token: presented }) {
     const now = this.clock();
     if (this.status !== 'live') throw new ActionError('This meeting has ended.');
 
@@ -140,9 +142,11 @@ export class Meeting {
     }
     if (this.participants.size >= MAX_PARTICIPANTS) throw new ActionError('This meeting is full.');
 
-    const isAnon = Boolean(anon);
-    const displayName = isAnon ? 'Anonymous' : clean(name, 30);
-    if (!displayName) throw new ActionError('Enter a name or choose Anonymous.');
+    const displayName = clean(name, 60);
+    if (displayName.length < 2) throw new ActionError('Enter your name as it appears in the meeting.');
+    if (PLACEHOLDER_NAMES.test(displayName)) {
+      throw new ActionError('Please use your real name, as it appears in the meeting, so the host can follow up with you.');
+    }
 
     const token = newId(16);
     const participant = {
@@ -150,7 +154,7 @@ export class Meeting {
       token, // returned to the browser once; never persisted
       tokenHash: hashToken(token),
       name: displayName,
-      anon: isAnon,
+      presenting: false,
       joinedAt: now,
       connected: true,
       lastActionAt: 0,
@@ -172,6 +176,11 @@ export class Meeting {
 
   claim(userId) {
     if (!this.ownerId) this.ownerId = userId;
+  }
+
+  setPresenting(pid, on) {
+    const p = this.participants.get(pid);
+    if (p) p.presenting = Boolean(on);
   }
 
   setConnected(pid, connected) {
@@ -224,19 +233,17 @@ export class Meeting {
     this.#touch(p, 'reaction', POINTS.reaction, 'reactions');
   }
 
-  ask(pid, text, anon = false) {
+  ask(pid, text) {
     this.#requireLive();
     const p = this.#participant(pid);
     const body = clean(text, 280);
     if (!body) throw new ActionError('Type a question first.');
     if (this.questions.length >= MAX_QUESTIONS) throw new ActionError('Question limit reached.');
-    const hidden = Boolean(anon) || p.anon;
     this.questions.push({
       id: newId(4),
       text: body,
       authorPid: pid,
-      author: hidden ? 'Anonymous' : p.name,
-      anon: hidden,
+      author: p.name,
       votes: new Set(),
       answered: false,
       pinned: false,
@@ -468,6 +475,15 @@ export class Meeting {
       }
     }
     this.momentHistory.push(this.#momentSummary(mo));
+    // Who answered stays host-side, separate from the summary attendees receive in their recap.
+    this.responseLog.push({
+      id: mo.id,
+      type: mo.type,
+      prompt: mo.prompt,
+      openedAt: mo.openedAt,
+      // Only that someone answered, never what they chose: "Missed that" and wrong answers stay anonymous.
+      responses: [...mo.responses.keys()].map((pid) => [pid, 'answered']),
+    });
   }
 
   dismissMoment() {
@@ -1045,6 +1061,10 @@ export class Meeting {
       agenda: this.agendaSegmentStats(),
       coach: this.coach(),
       topQuestions: this.#publicQuestions(null).slice(0, 5),
+      people: this.people(now).map((person) => ({
+        ...person,
+        longestQuietMs: this.#longestQuietMs(this.participants.get(person.id), now),
+      })),
       unanswered: open.length,
       prediction: {
         question: this.prediction.question,
@@ -1054,9 +1074,93 @@ export class Meeting {
     };
   }
 
+  // ---- people (host only) ---------------------------------------------------
+  // Engage only sees actions taken inside Engage. "Quiet" means no Engage activity, not
+  // "not listening", so the host UI says exactly that. People who flagged "I'm presenting" are
+  // marked rather than counted as quiet.
+
+  people(now = this.clock()) {
+    return [...this.participants.values()]
+      .map((p) => {
+        const since = p.lastActionAt || p.joinedAt;
+        return {
+          id: p.id,
+          name: p.name,
+          connected: p.connected,
+          presenting: p.presenting,
+          joinedAt: p.joinedAt,
+          lastActionAt: p.lastActionAt || null,
+          neverActed: p.lastActionAt === 0,
+          quietMs: Math.max(0, now - since),
+          actions: p.counts.reactions + p.counts.questions + p.counts.votes + p.counts.answers,
+        };
+      })
+      .sort((a, b) => Number(b.connected) - Number(a.connected) || b.quietMs - a.quietMs || a.name.localeCompare(b.name));
+  }
+
+  #longestQuietMs(p, until) {
+    let longest = 0;
+    let prev = p.joinedAt;
+    for (const a of this.actions) {
+      if (a.pid !== p.id) continue;
+      longest = Math.max(longest, a.t - prev);
+      prev = a.t;
+    }
+    return Math.max(longest, until - prev);
+  }
+
+  personDetail(pid, now = this.endedAt ?? this.clock()) {
+    const p = this.participants.get(pid);
+    if (!p) throw new ActionError('Unknown participant.');
+    const reactionsByKind = Object.fromEntries(REACTIONS.map((kind) => [kind, 0]));
+    for (const r of this.reactionLog) if (r.pid === pid) reactionsByKind[r.kind] += 1;
+
+    const bucketMs = 5 * 60_000;
+    const first = Math.floor((p.joinedAt - this.startedAt) / bucketMs);
+    const last = Math.floor((now - this.startedAt) / bucketMs);
+    const timeline = [];
+    for (let b = Math.max(0, first); b <= last; b++) {
+      const from = this.startedAt + b * bucketMs;
+      const count = this.actions.filter((a) => a.pid === pid && a.t >= from && a.t < from + bucketMs).length;
+      timeline.push({ fromMin: b * 5, count });
+    }
+
+    const prompts = this.responseLog
+      .filter((entry) => entry.openedAt >= p.joinedAt)
+      .map((entry) => ({
+        prompt: entry.prompt,
+        type: entry.type,
+        status: entry.responses.find(([id]) => id === pid)?.[1] ?? 'none',
+      }));
+
+    return {
+      id: p.id,
+      name: p.name,
+      connected: p.connected,
+      presenting: p.presenting,
+      joinedAt: p.joinedAt,
+      minutesIn: Math.round((now - p.joinedAt) / 60_000),
+      lastActionAt: p.lastActionAt || null,
+      quietMs: Math.max(0, now - (p.lastActionAt || p.joinedAt)),
+      longestQuietMs: this.#longestQuietMs(p, now),
+      counts: {
+        reactions: p.counts.reactions,
+        questions: p.counts.questions,
+        votes: p.counts.votes,
+        answers: p.counts.answers,
+      },
+      reactionsByKind,
+      timeline,
+      prompts,
+      answeredPrompts: prompts.filter((x) => x.status !== 'none').length,
+      questions: this.questions
+        .filter((q) => q.authorPid === pid)
+        .map((q) => ({ text: q.text, votes: q.votes.size, answered: q.answered })),
+    };
+  }
+
   // ---- persistence ---------------------------------------------------------
-  // Snapshot of everything needed to resume the meeting. Tokens appear only as hashes, and
-  // anonymous questions drop their author link so a database can never reveal who asked.
+  // Snapshot of everything needed to resume the meeting. Tokens appear only as hashes.
 
   serialize() {
     return {
@@ -1078,7 +1182,7 @@ export class Meeting {
         id: p.id,
         tokenHash: p.tokenHash,
         name: p.name,
-        anon: p.anon,
+        presenting: p.presenting,
         joinedAt: p.joinedAt,
         lastActionAt: p.lastActionAt,
         points: p.points,
@@ -1090,13 +1194,13 @@ export class Meeting {
         lastReactionAt: p.lastReactionAt,
       })),
       actions: this.actions,
+      responseLog: this.responseLog,
       reactionLog: this.reactionLog,
       questions: this.questions.map((q) => ({
         id: q.id,
         text: q.text,
-        authorPid: q.anon ? null : q.authorPid,
+        authorPid: q.authorPid,
         author: q.author,
-        anon: q.anon,
         votes: [...q.votes],
         answered: q.answered,
         pinned: q.pinned,
@@ -1137,6 +1241,7 @@ export class Meeting {
     for (const p of data.participants) {
       m.participants.set(p.id, {
         ...p,
+        presenting: Boolean(p.presenting),
         connected: false,
         marks: new Set(p.marks),
         paidMarks: new Set(p.paidMarks),
@@ -1144,6 +1249,7 @@ export class Meeting {
       });
     }
     m.actions = data.actions;
+    m.responseLog = data.responseLog ?? [];
     m.reactionLog = data.reactionLog;
     m.questions = data.questions.map((q) => ({ ...q, authorPid: q.authorPid ?? null, votes: new Set(q.votes) }));
     m.series = data.series;
@@ -1207,6 +1313,7 @@ export class Meeting {
       quiet: this.quiet,
       suggestions: this.suggestions(now),
       floorOpen: Boolean(this.nudge),
+      people: this.people(now),
     };
     if (this.status === 'ended') snapshot.summary = this.summary();
     return snapshot;
@@ -1227,7 +1334,7 @@ export class Meeting {
       status: this.status,
       now,
       startedAt: this.startedAt,
-      me: { id: p.id, name: p.name, anon: p.anon, points: p.points, counts: p.counts },
+      me: { id: p.id, name: p.name, points: p.points, counts: p.counts },
       focus: this.focus,
       gamesOpen: this.gamesOpen,
       windows: this.#nextWindow(now),
