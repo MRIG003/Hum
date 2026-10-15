@@ -37,6 +37,8 @@ The host console (`/h/CODE`) and every other page still refuse to be framed.
 
 - **Not tested in real Meet.** In particular: whether Google's SDK loads under Engage's security headers, whether `startActivity()` with no arguments invites the call as intended, and how the panel behaves on a phone.
 - **Storage inside the panel.** Browsers store data for an embedded page separately from the same site opened in its own tab. People may be asked for their name once in the panel and again in a normal tab. A host's private link carries the token to the full console.
+- **Host key is per tab.** The panel keeps the host key in the browser tab (not shared browser storage), so a second Google account in the same browser does not get host controls. The cost: if the host closes that tab, the panel shows the attendee view. Use **Open the full console** (or its link) to keep host control.
+- **Who can see the add-on.** An add-on installed from the Cloud console is installed for the developer's own account only. Other people only see Engage in Activities once it is installed for them or published to their organisation. Everyone can still use the normal join link.
 - **Sign-in cookies do not work in the panel** (they are not sent in a cross-site frame), so the panel host uses the private host token. Host accounts and *My meetings* still work in a normal tab.
 - **Names.** Google's SDK does not give Engage participants' names. People type their name, and Engage refuses placeholder names. Matching names to the Meet roster is not built.
 - **One live Engage meeting per Meet call.** If a recurring Meet code is reused after an Engage meeting ended, a new one can be started.

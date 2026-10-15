@@ -1,4 +1,4 @@
-import { $, $$, connect, esc, formatClock, storage, toast } from './common.js';
+import { $, $$, connect, esc, formatClock, toast } from './common.js';
 
 const show = (id) => {
   for (const el of $$('#panel > section, #panel > div')) el.hidden = el.id !== id;
@@ -12,6 +12,17 @@ const fail = (title, text) => {
 
 // Meet gives each meeting a stable id. Keep only characters the Engage link API accepts.
 const linkKey = (meetingId) => String(meetingId).replace(/[^\w.-]/g, '_').slice(0, 80);
+
+// The panel's host key lives in this tab only (sessionStorage). Storage that is shared across
+// the whole browser would hand the host view to any other Google account used in the same
+// browser profile.
+const panelKey = (meetingCode) => `engage.panelhost.${meetingCode}`;
+const getPanelToken = (meetingCode) => {
+  try { return sessionStorage.getItem(panelKey(meetingCode)); } catch { return null; }
+};
+const setPanelToken = (meetingCode, token) => {
+  try { sessionStorage.setItem(panelKey(meetingCode), token); } catch { /* storage can be blocked */ }
+};
 
 let code = null;
 let hostToken = null;
@@ -50,7 +61,7 @@ const goAttendee = (target) => location.replace(`/j/${target}?embed=1`);
 async function route(ctx) {
   const found = await lookup(ctx.key);
   if (found) {
-    const token = storage.get(`engage.host.${found.code}`);
+    const token = getPanelToken(found.code);
     if (token) return startHost(found.code, token, found.title);
     return goAttendee(found.code);
   }
@@ -84,7 +95,7 @@ async function route(ctx) {
       $('#start-btn').disabled = false;
       return;
     }
-    storage.set(`engage.host.${body.code}`, body.hostToken);
+    setPanelToken(body.code, body.hostToken);
     // Invite the others in the call to open Engage. Failing here must not stop the host.
     try { await ctx.client.startActivity(); } catch { /* the host can still invite people from Activities */ }
     startHost(body.code, body.hostToken, title);
