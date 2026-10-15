@@ -351,3 +351,60 @@ test('serialize keeps responses and presenting so detail survives a restart', ()
   assert.equal(d.answeredPrompts, 1);
   assert.equal(d.presenting, true);
 });
+
+// ---- Google Meet add-on ---------------------------------------------------------------------
+
+test('meetings can be linked to a Meet meeting; one live Engage meeting per Meet meeting', async () => {
+  const link = { platform: 'meet', id: 'spaces_abc123' };
+  const made = await post('/api/meetings', { title: 'Weekly', platform: 'meet', link });
+  assert.equal(made.status, 201);
+  const { code } = await made.json();
+
+  const found = await fetch(`${base}/api/link/meet/spaces_abc123`);
+  assert.equal(found.status, 200);
+  assert.equal((await found.json()).code, code);
+  assert.equal((await fetch(`${base}/api/link/meet/nothing-here`)).status, 404);
+
+  const again = await post('/api/meetings', { title: 'Second', platform: 'meet', link });
+  assert.equal(again.status, 409);
+  assert.equal((await again.json()).code, code, 'the second person is sent to the existing meeting');
+
+  app.meetings.get(code).end();
+  assert.equal((await fetch(`${base}/api/link/meet/spaces_abc123`)).status, 404, 'an ended meeting is no longer joinable through the link');
+  const fresh = await post('/api/meetings', { title: 'Next week', platform: 'meet', link });
+  assert.equal(fresh.status, 201, 'a recurring Meet can start a new Engage meeting after the last one ended');
+});
+
+test('a bad link id or platform is ignored, and the link survives serialize and restore', () => {
+  const { meeting } = make();
+  assert.equal(meeting.link, null);
+  const m = new Meeting({ title: 'x', platform: 'meet', link: { platform: 'meet', id: 'bad id with spaces' } });
+  assert.equal(m.link, null);
+  assert.equal(new Meeting({ title: 'x', platform: 'nonsense' }).platform, 'other');
+  const linked = new Meeting({ title: 'x', platform: 'meet', link: { platform: 'meet', id: 'spaces_abc' } });
+  const back = Meeting.restore(JSON.parse(JSON.stringify(linked.serialize())));
+  assert.deepEqual(back.link, { platform: 'meet', id: 'spaces_abc' });
+  assert.equal(back.hostSnapshot().platform, 'meet');
+});
+
+test('only the attendee page and the add-on panel can be framed, and only by Google Meet', async () => {
+  const { code } = await (await post('/api/meetings', { title: 'Frames' })).json();
+  const csp = async (path) => (await fetch(base + path)).headers.get('content-security-policy');
+  assert.match(await csp(`/j/${code}`), /frame-ancestors 'self' https:\/\/meet\.google\.com/);
+  assert.match(await csp('/meet/panel'), /frame-ancestors 'self' https:\/\/meet\.google\.com/);
+  assert.match(await csp(`/h/${code}`), /frame-ancestors 'none'/, 'the host console is never framed');
+  assert.match(await csp('/'), /frame-ancestors 'none'/);
+});
+
+test('the Meet SDK is served from our own origin and the panel reads the project number from config', async () => {
+  const sdk = await fetch(`${base}/vendor/meet.addons.mjs`);
+  assert.equal(sdk.status, 200);
+  assert.match(sdk.headers.get('content-type'), /javascript/);
+  assert.ok((await sdk.text()).includes('createAddonSession'));
+  process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER = '123456789';
+  try {
+    assert.equal((await (await fetch(`${base}/api/config`)).json()).googleCloudProjectNumber, '123456789');
+  } finally {
+    delete process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER;
+  }
+});

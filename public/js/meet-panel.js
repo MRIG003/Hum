@@ -1,0 +1,188 @@
+import { $, $$, connect, esc, formatClock, storage, toast } from './common.js';
+
+const show = (id) => {
+  for (const el of $$('#panel > section, #panel > div')) el.hidden = el.id !== id;
+};
+
+const fail = (title, text) => {
+  $('#error-title').textContent = title;
+  $('#error-text').textContent = text;
+  show('state-error');
+};
+
+// Meet gives each meeting a stable id. Keep only characters the Engage link API accepts.
+const linkKey = (meetingId) => String(meetingId).replace(/[^\w.-]/g, '_').slice(0, 80);
+
+let code = null;
+let hostToken = null;
+let socket = null;
+let state = null;
+
+async function connectToMeet() {
+  const config = await fetch('/api/config').then((r) => r.json());
+  if (!config.googleCloudProjectNumber) {
+    return fail('Not set up yet', 'Engage is not configured for Google Meet yet. The person who set up Engage needs to add the Google Cloud project number.');
+  }
+  let client;
+  try {
+    const { meet } = await import('/vendor/meet.addons.mjs');
+    // Outside Meet the SDK may never answer, so do not wait forever.
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+    const open = async () => {
+      const session = await meet.addon.createAddonSession({ cloudProjectNumber: config.googleCloudProjectNumber });
+      return session.createSidePanelClient();
+    };
+    client = await Promise.race([open(), timeout]);
+  } catch {
+    return fail('Open Engage from Google Meet', 'This panel only works inside a Google Meet call. In Meet, choose Activities, then Engage.');
+  }
+  const info = await client.getMeetingInfo();
+  return { client, key: linkKey(info.meetingId), meetingCode: info.meetingCode };
+}
+
+const lookup = async (key) => {
+  const res = await fetch(`/api/link/meet/${encodeURIComponent(key)}`);
+  return res.ok ? res.json() : null;
+};
+
+const goAttendee = (target) => location.replace(`/j/${target}?embed=1`);
+
+async function route(ctx) {
+  const found = await lookup(ctx.key);
+  if (found) {
+    const token = storage.get(`engage.host.${found.code}`);
+    if (token) return startHost(found.code, token, found.title);
+    return goAttendee(found.code);
+  }
+  $('#panel-sub').textContent = ctx.meetingCode ?? '';
+  show('state-start');
+  $('#start-title').placeholder = ctx.meetingCode ? `Meet ${ctx.meetingCode}` : 'Weekly team meeting';
+  // Non-hosts wait here; the moment the host starts Engage, this panel opens it.
+  const timer = setInterval(async () => {
+    if ($('#state-start').contains(document.activeElement)) return; // do not interrupt someone typing
+    const live = await lookup(ctx.key);
+    if (live) {
+      clearInterval(timer);
+      goAttendee(live.code);
+    }
+  }, 4000);
+  $('#start-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    clearInterval(timer);
+    $('#start-btn').disabled = true;
+    const title = $('#start-title').value.trim() || ($('#start-title').placeholder);
+    const res = await fetch('/api/meetings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, platform: 'meet', link: { platform: 'meet', id: ctx.key } }),
+    });
+    const body = await res.json();
+    if (res.status === 409 && body.code) return goAttendee(body.code); // someone else started it a moment ago
+    if (!res.ok) {
+      $('#start-error').textContent = body.error ?? 'Could not start Engage.';
+      $('#start-error').hidden = false;
+      $('#start-btn').disabled = false;
+      return;
+    }
+    storage.set(`engage.host.${body.code}`, body.hostToken);
+    // Invite the others in the call to open Engage. Failing here must not stop the host.
+    try { await ctx.client.startActivity(); } catch { /* the host can still invite people from Activities */ }
+    startHost(body.code, body.hostToken, title);
+  });
+}
+
+// ---- compact host view -------------------------------------------------------
+
+function startHost(meetingCode, token, title) {
+  code = meetingCode;
+  hostToken = token;
+  $('#panel-sub').textContent = title ?? '';
+  $('#p-console').href = `/h/${code}#t=${token}`;
+  show('state-host');
+  socket = connect({
+    hello: () => ({ t: 'hello', role: 'host', code, hostToken }),
+    onState: (next) => {
+      state = next;
+      render();
+    },
+    onFatal: (message) => fail('Engage could not open', message),
+    onError: (message) => toast(message),
+  });
+}
+
+const minutes = (ms) => {
+  const m = Math.floor(ms / 60_000);
+  return m < 1 ? '< 1 min' : `${m} min`;
+};
+
+function render() {
+  if (state.status === 'ended') {
+    show('state-error');
+    $('#error-title').textContent = 'Meeting ended';
+    $('#error-text').textContent = 'The summary is in the full console.';
+    return;
+  }
+  $('#p-eng').textContent = `${state.engagement.pct}%`;
+  $('#p-eng-sub').textContent = state.counts.connected ? `${state.engagement.active} of ${state.counts.connected} active` : 'Waiting for people';
+  $('#p-conn').textContent = String(state.counts.connected);
+  $('#p-conn-sub').textContent = `${state.counts.joined} joined`;
+
+  const focus = $('#p-focus');
+  focus.textContent = state.focus ? 'Resume everyone' : 'Focus moment';
+  focus.dataset.on = state.focus ? '' : '1';
+  focus.classList.toggle('primary', state.focus);
+
+  $('#p-banners').innerHTML = [
+    ...(state.focus ? ['<div class="banner focus"><span><b>Focus moment is on.</b> Prompts are paused.</span></div>'] : []),
+    ...state.suggestions.slice(0, 1).map((s) => `<div class="banner warn suggestion"><div><b>Suggestion.</b> ${esc(s.text)}</div><div class="row">${
+      s.actions.includes('pulse') ? '<button id="p-sugg-pulse" class="primary small">Run a pulse check</button>' : ''}${
+      s.actions.includes('floor') ? '<button data-action="floor" class="small">Open the floor</button>' : ''}</div></div>`),
+    ...(state.topicNudge ? [`<div class="banner"><div><b>${esc(state.topicNudge.topic)} is wrapping up.</b> You prepared: “${esc(state.topicNudge.prompt)}”</div><button class="primary small" data-prepared="${esc(state.topicNudge.promptId)}">Launch it</button></div>`] : []),
+  ].join('');
+
+  const m = state.moment;
+  $('#p-moment').innerHTML = m
+    ? `<p class="small"><b>${esc(m.prompt)}</b></p><p class="small muted">${m.results.total} answered${m.status === 'open' && m.closesAt ? ` · closes in <span class="num" data-closes="${m.closesAt}"></span>` : ''}</p>${
+      m.status === 'open' ? '<button data-action="closeMoment" class="small primary">Close and show results</button>' : '<button data-action="dismissMoment" class="small">Dismiss</button>'}`
+    : '';
+
+  const quiet = (state.people ?? []).filter((p) => p.connected && !p.presenting && p.quietMs >= 5 * 60_000).slice(0, 6);
+  $('#p-quiet').innerHTML = quiet.length
+    ? quiet.map((p) => `<div class="person-row" style="grid-template-columns: 1fr auto"><b>${esc(p.name)}</b><span class="chip warn">${minutes(p.quietMs)}</span></div>`).join('')
+    : `<p class="muted small">${state.counts.connected ? 'Everyone has taken part in the last 5 minutes.' : 'Nobody is here yet.'}</p>`;
+
+  const open = state.questions.filter((q) => !q.answered).slice(0, 4);
+  $('#p-q-count').textContent = `${state.questions.filter((q) => !q.answered).length} open`;
+  $('#p-questions').innerHTML = open.length
+    ? open.map((q) => `<div class="q" style="grid-template-columns: auto 1fr auto"><div class="votes"><b class="num">${q.votes}</b></div><div><div>${esc(q.text)}</div><div class="meta">${esc(q.author)}</div></div><button class="small" data-answered="${esc(q.id)}">Answered</button></div>`).join('')
+    : '<p class="muted small">No questions yet.</p>';
+  tickCountdown();
+}
+
+const tickCountdown = () => {
+  for (const el of $$('[data-closes]')) el.textContent = formatClock(Number(el.dataset.closes) - (socket?.now() ?? Date.now()));
+};
+setInterval(tickCountdown, 500);
+
+const pulse = () => socket?.send({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
+
+document.addEventListener('click', (event) => {
+  const el = event.target.closest('button');
+  if (!el || !socket) return;
+  const { action } = el.dataset;
+  if (el.id === 'p-pulse' || el.id === 'p-sugg-pulse') pulse();
+  else if (action === 'floor') socket.send({ t: 'floor' });
+  else if (action === 'focus') socket.send({ t: 'focus', on: el.dataset.on === '1' });
+  else if (action === 'closeMoment') socket.send({ t: 'closeMoment' });
+  else if (action === 'dismissMoment') socket.send({ t: 'dismissMoment' });
+  else if (el.dataset.answered) socket.send({ t: 'answered', id: el.dataset.answered, answered: true });
+  else if (el.dataset.prepared) socket.send({ t: 'launchPrepared', id: el.dataset.prepared });
+  else if (el.id === 'p-copy') {
+    navigator.clipboard?.writeText(`${location.origin}/j/${code}`).then(() => toast('Join link copied'), () => toast('Copy failed'));
+  } else if (el.id === 'p-end') {
+    if (confirm('End the meeting for everyone and build the summary?')) socket.send({ t: 'end' });
+  }
+});
+
+show('state-loading');
+connectToMeet().then((ctx) => ctx && route(ctx)).catch((error) => fail('Engage could not start', error.message));

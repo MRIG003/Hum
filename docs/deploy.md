@@ -20,6 +20,7 @@ This is the pilot setup (engineering plan epic E0). It runs one instance of the 
 | `ENGAGE_SURVEY_URL` | unset | Link to a short feedback form. Shown on the host summary and attendee recap |
 | `ENGAGE_SAMPLE_MS` | `30000` | How often the engagement chart samples. Leave at the default in production |
 | `ENGAGE_DATABASE_URL` | unset | Postgres connection string (Render Postgres, Supabase, any Postgres). Preferred when you have no persistent disk. Takes priority over `ENGAGE_DB` |
+| `ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER` | unset | Google Cloud project number for the Meet add-on. See `docs/google-meet.md` |
 | `ENGAGE_DB` | unset | Path of the SQLite file, for example `/data/engage.db`. Unset means memory only |
 | `ENGAGE_PUBLIC_URL` | unset | Your public address, such as `https://engage.example.com`. Used in QR codes, and turns on the `Secure` flag for sign-in cookies. Set it in production |
 | `ENGAGE_RETENTION_HOURS` | `24` | How long ended meetings without an account are kept |

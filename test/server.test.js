@@ -136,7 +136,7 @@ test('static pages and security headers', async () => {
 test('config endpoint exposes the survey link only when set', async () => {
   const response = await fetch(`http://${base}/api/config`);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { surveyUrl: null });
+  assert.deepEqual(await response.json(), { surveyUrl: null, googleCloudProjectNumber: null });
 });
 
 test('host can set an agenda and attendees see the current topic', async () => {

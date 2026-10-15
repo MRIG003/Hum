@@ -4,11 +4,13 @@ import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import qrcode from 'qrcode-generator';
-import { ActionError, Meeting, newCode } from './meeting.js';
+import { ActionError, Meeting, newCode, PLATFORMS } from './meeting.js';
 import { AuthError, createAuth } from './auth.js';
 import { meetingCsv } from './export.js';
 import { MemoryStore, openPostgresStore, openSqliteStore } from './store.js';
 
+const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+const MEET_SDK = join(ROOT_DIR, 'node_modules', '@googleworkspace', 'meet-addons', 'meet.addons.mjs');
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT) || 3000;
 const MEETING_TTL_MS = 12 * 60 * 60_000;
@@ -27,11 +29,17 @@ const MIME = {
   '.svg': 'image/svg+xml',
   '.json': 'application/json',
   '.ico': 'image/x-icon',
+  '.png': 'image/png',
 };
 
+const CSP = (frameAncestors) =>
+  `default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors ${frameAncestors}`;
+
+// Only the add-on panel and the attendee page may be framed, and only by Google Meet.
+const EMBEDDABLE_CSP = CSP("'self' https://meet.google.com");
+
 const SECURITY_HEADERS = {
-  'Content-Security-Policy':
-    "default-src 'self'; connect-src 'self' ws: wss:; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; frame-ancestors 'none'",
+  'Content-Security-Policy': CSP("'none'"),
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
 };
@@ -259,6 +267,9 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     return Boolean(user && meeting.ownerId === user.id);
   };
 
+  const findLinked = (platform, id) =>
+    [...meetings.values()].find((m) => m.status === 'live' && m.link?.platform === platform && m.link.id === id) ?? null;
+
   const destroyMeeting = (code) => {
     for (const [ws, info] of sockets) {
       if (info.code !== code) continue;
@@ -306,9 +317,10 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     return true;
   };
 
-  const servePage = async (res, file) => {
+  const servePage = async (res, file, { embeddable = false } = {}) => {
     const body = await readFile(join(PUBLIC_DIR, file));
-    res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', ...SECURITY_HEADERS });
+    const headers = embeddable ? { ...SECURITY_HEADERS, 'Content-Security-Policy': EMBEDDABLE_CSP } : SECURITY_HEADERS;
+    res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', ...headers });
     res.end(body);
   };
 
@@ -339,7 +351,10 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     try {
       if (req.method === 'GET' && pathname === '/healthz') return json(res, 200, { ok: true });
       if (req.method === 'GET' && pathname === '/api/config') {
-        return json(res, 200, { surveyUrl: process.env.ENGAGE_SURVEY_URL || null });
+        return json(res, 200, {
+          surveyUrl: process.env.ENGAGE_SURVEY_URL || null,
+          googleCloudProjectNumber: process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER || null,
+        });
       }
 
       if (req.method === 'POST' && pathname === '/api/meetings') {
@@ -349,7 +364,20 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         const body = await readJson(req);
         let code = newCode();
         while (meetings.has(code)) code = newCode();
-        const meeting = new Meeting({ code, title: body.title, expected: body.expected, agenda: body.agenda, clock });
+        const link = body.link && typeof body.link === 'object' ? body.link : null;
+        if (link) {
+          const existing = findLinked(link.platform, link.id);
+          if (existing) return json(res, 409, { error: 'Engage is already running in this meeting.', code: existing.code });
+        }
+        const meeting = new Meeting({
+          code,
+          title: body.title,
+          expected: body.expected,
+          agenda: body.agenda,
+          platform: PLATFORMS.includes(body.platform) ? body.platform : link?.platform,
+          link,
+          clock,
+        });
         const user = sameOrigin(req) ? auth.userFromRequest(req) : null;
         if (user) meeting.claim(user.id);
         meetings.set(code, meeting);
@@ -421,6 +449,13 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         return json(res, 200, { ok: true });
       }
 
+      const linkMatch = pathname.match(/^\/api\/link\/([a-z]+)\/([\w./-]{3,80})$/);
+      if (req.method === 'GET' && linkMatch) {
+        const found = findLinked(linkMatch[1], linkMatch[2]);
+        if (!found) return json(res, 404, { error: 'No Engage meeting is running here yet.' });
+        return json(res, 200, { code: found.code, title: found.title });
+      }
+
       const apiMatch = pathname.match(/^\/api\/meetings\/([A-Za-z0-9]{6})$/);
       if (req.method === 'GET' && apiMatch) {
         const meeting = meetings.get(apiMatch[1].toUpperCase());
@@ -435,6 +470,11 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
 
       if (pathname === '/') return await servePage(res, 'index.html');
       if (pathname === '/login') return await servePage(res, 'login.html');
+      if (pathname === '/meet/panel') return await servePage(res, 'meet/panel.html', { embeddable: true });
+      if (pathname === '/vendor/meet.addons.mjs') {
+        res.writeHead(200, { 'Content-Type': MIME['.js'], 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS });
+        return res.end(await readFile(MEET_SDK));
+      }
       if (pathname === '/meetings') return await servePage(res, 'meetings.html');
       // Short address: /ABC234 goes to the join page when that meeting exists.
       const shortMatch = pathname.match(/^\/([A-Za-z0-9]{6})$/);
@@ -443,7 +483,7 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         return res.end();
       }
       if (/^\/h\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'host.html');
-      if (/^\/j\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'join.html');
+      if (/^\/j\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'join.html', { embeddable: true });
       return await serveStatic(res, pathname);
     } catch (error) {
       if (error instanceof AuthError) return json(res, error.status, { error: error.message });

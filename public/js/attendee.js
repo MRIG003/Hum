@@ -13,6 +13,8 @@ let momentKey = '';
 let notes = storage.get(notesKey) ?? { text: '', todos: [] };
 let surveyUrl = null;
 let presenting = false;
+const embedded = new URLSearchParams(location.search).get('embed') === '1';
+if (embedded) document.body.classList.add('embed');
 let skipped = 0;
 let seenMomentId = null;
 let seenFloor = false;
@@ -157,7 +159,7 @@ function setPresenting(on) {
 function renderMiniButton() {
   const pop = $('#pop-out');
   const sw = $('#presenting');
-  pop.hidden = false;
+  pop.hidden = embedded; // inside the Meet panel there is nothing to float
   sw.hidden = false;
   pop.textContent = mini.isOpen() ? 'Mini window open' : 'Mini window';
   pop.disabled = mini.isOpen();

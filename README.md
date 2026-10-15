@@ -62,6 +62,10 @@ docs/design/        UX/UI design package and clickable prototype
 docs/architecture/  Technical architecture, engineering plan, diagrams
 ```
 
+## Google Meet
+
+Engage can run inside a Meet call as an add-on. See [docs/google-meet.md](docs/google-meet.md).
+
 ## Known limits (prototype)
 
 - Set `ENGAGE_DB` to keep meetings across restarts (SQLite on a persistent disk). Without it, meetings live in memory only. Persistence saves snapshots every few seconds, not an event log.

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engage for Google Meet</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="embed">
+  <main class="panel" id="panel">
+    <header class="panel-head">
+      <span class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</span>
+      <span class="small muted" id="panel-sub"></span>
+    </header>
+
+    <section id="state-loading" class="card stack" role="status">
+      <p>Connecting to Google Meet…</p>
+    </section>
+
+    <section id="state-error" class="card stack" role="alert" hidden>
+      <h2 id="error-title">Engage could not start</h2>
+      <p id="error-text" class="muted"></p>
+    </section>
+
+    <section id="state-start" class="card stack" hidden>
+      <h2>Start Engage for this meeting</h2>
+      <p class="muted">You will be the host. Everyone who opens Engage in this Meet joins the same session automatically, with their name.</p>
+      <form id="start-form" class="stack" autocomplete="off">
+        <div>
+          <label for="start-title">Meeting title</label>
+          <input id="start-title" type="text" maxlength="80" placeholder="Weekly team meeting">
+        </div>
+        <button class="primary" type="submit" id="start-btn">Start Engage</button>
+        <p id="start-error" class="small" style="color: var(--bad)" role="alert" hidden></p>
+      </form>
+      <p class="small muted">Not the host? Wait here. This panel opens Engage for you as soon as the host starts it.</p>
+    </section>
+
+    <section id="state-wait" class="card stack" role="status" hidden>
+      <h2>Waiting for the host</h2>
+      <p class="muted">Engage will open here as soon as the host starts it for this meeting.</p>
+    </section>
+
+    <div id="state-host" class="stack" hidden>
+      <div id="p-banners" class="stack"></div>
+      <div class="tiles">
+        <div class="tile"><div class="label">Engagement</div><div class="value num" id="p-eng">0%</div><div class="sub" id="p-eng-sub"></div></div>
+        <div class="tile"><div class="label">Here now</div><div class="value num" id="p-conn">0</div><div class="sub" id="p-conn-sub"></div></div>
+      </div>
+
+      <section class="card" aria-label="Quick actions">
+        <h2>Ask the room</h2>
+        <div class="row" style="margin-top: 8px">
+          <button id="p-pulse">Pulse check</button>
+          <button data-action="floor">Open the floor</button>
+          <button id="p-focus" data-action="focus">Focus moment</button>
+        </div>
+        <div id="p-moment" style="margin-top: 10px"></div>
+      </section>
+
+      <section class="card" aria-label="Who has been quiet">
+        <div class="card-head"><h2>Who has been quiet</h2><span class="small muted">5+ min</span></div>
+        <div id="p-quiet" class="people"></div>
+        <p class="small muted">Only counts activity inside Engage.</p>
+      </section>
+
+      <section class="card" aria-label="Questions">
+        <div class="card-head"><h2>Questions</h2><span class="small muted" id="p-q-count"></span></div>
+        <div id="p-questions" class="q-list"></div>
+      </section>
+
+      <section class="card stack" aria-label="More">
+        <a id="p-console" class="button-like" target="_blank" rel="noopener noreferrer">Open the full console</a>
+        <div class="row">
+          <button id="p-copy" class="small">Copy join link</button>
+          <button id="p-end" class="small danger">End meeting</button>
+        </div>
+        <p class="small muted">Share the join link with anyone who is not using Google Meet.</p>
+      </section>
+    </div>
+  </main>
+  <script type="module" src="/js/meet-panel.js"></script>
+</body>
+</html>

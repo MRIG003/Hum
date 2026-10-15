@@ -1,0 +1,15 @@
+{
+  "addOns": {
+    "common": {
+      "name": "Engage",
+      "logoUrl": "https://YOUR-ENGAGE-ADDRESS/img/engage-128.png"
+    },
+    "meet": {
+      "web": {
+        "sidePanelUrl": "https://YOUR-ENGAGE-ADDRESS/meet/panel",
+        "supportsScreenSharing": false,
+        "addOnOrigins": ["https://YOUR-ENGAGE-ADDRESS"]
+      }
+    }
+  }
+}

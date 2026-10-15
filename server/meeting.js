@@ -1,5 +1,7 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 
+export const PLATFORMS = ['meet', 'zoom', 'teams', 'zoho', 'other'];
+
 export const REACTIONS = ['agree', 'question', 'lost', 'fast', 'move_on'];
 
 export const DEFAULT_BINGO_WORDS = [
@@ -84,12 +86,20 @@ export class Meeting {
     title,
     expected = 0,
     agenda = '',
+    platform = 'other',
+    link = null,
     clock = Date.now,
     sampleMs = Number(process.env.ENGAGE_SAMPLE_MS) || 30_000,
   } = {}) {
     this.clock = clock;
     this.sampleMs = sampleMs;
     this.code = code ?? newCode();
+    this.platform = PLATFORMS.includes(platform) ? platform : 'other';
+    // Ties this meeting to a meeting inside a platform (for example a Google Meet meeting id),
+    // so everyone who opens the add-on in that meeting lands in the same Engage meeting.
+    this.link = link && PLATFORMS.includes(link.platform) && /^[\w./-]{3,80}$/.test(String(link.id ?? ''))
+      ? { platform: link.platform, id: String(link.id) }
+      : null;
     this.hostToken = newId(16); // plaintext exists only in memory, handed out once at creation
     this.hostTokenHash = hashToken(this.hostToken);
     this.ownerId = null;
@@ -1168,6 +1178,8 @@ export class Meeting {
       code: this.code,
       title: this.title,
       expected: this.expected,
+      platform: this.platform,
+      link: this.link,
       ownerId: this.ownerId,
       hostTokenHash: this.hostTokenHash,
       agendaText: this.agendaText,
@@ -1226,7 +1238,15 @@ export class Meeting {
   }
 
   static restore(data, { clock = Date.now, sampleMs } = {}) {
-    const m = new Meeting({ code: data.code, title: data.title, expected: data.expected, clock, sampleMs });
+    const m = new Meeting({
+      code: data.code,
+      title: data.title,
+      expected: data.expected,
+      platform: data.platform,
+      link: data.link,
+      clock,
+      sampleMs,
+    });
     m.hostToken = null;
     m.hostTokenHash = data.hostTokenHash;
     m.ownerId = data.ownerId ?? null;
@@ -1277,6 +1297,7 @@ export class Meeting {
       role: 'host',
       code: this.code,
       title: this.title,
+      platform: this.platform,
       agenda: {
         text: this.agendaText,
         segments: this.agendaSegmentStats().map((seg, i) => ({ ...seg, prompts: this.#promptsForSegment(this.agendaSegments[i]) })),

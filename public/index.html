@@ -39,6 +39,17 @@
             <input id="title" type="text" maxlength="80" placeholder="Q3 roadmap review" required>
           </div>
           <div>
+            <label for="platform">Where is your meeting?</label>
+            <select id="platform">
+              <option value="meet">Google Meet</option>
+              <option value="zoom">Zoom</option>
+              <option value="teams">Microsoft Teams</option>
+              <option value="zoho">Zoho Meeting</option>
+              <option value="other">Another tool</option>
+            </select>
+            <p class="small muted" id="platform-note" style="margin-top: 6px"></p>
+          </div>
+          <div>
             <label for="expected">Expected attendees (optional)</label>
             <input id="expected" type="number" min="0" max="1000" placeholder="14">
           </div>

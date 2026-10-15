@@ -21,6 +21,7 @@ Last updated: 13 October 2026. Tracks progress against `docs/architecture/engine
 | **Quick wins** | QR code and short address ("Show on screen", `/ABC234`), CSV export (host-only, no names, formula-safe), pin up to 3 questions and merge duplicates | QR is made on the server. CSV is the only export format |
 | **E4** Host accounts and delete | Optional email and password accounts (scrypt, hashed sessions, secure cookie), My meetings page, owner opens a meeting without the private link, delete button on the live console, summary and My meetings page | No email verification or password reset. Accounts are for hosts only |
 | **Principles guard** | `test/principles.test.js` fails if a change adds sound or notifications, makes the mini window pop open for anything but a recall check, adds ranking, stores plaintext tokens or anonymous authors, shows coaching to attendees, or breaks dip suggestions and the coach summary | A guard, not proof of good design |
+| **Google Meet add-on** | Side panel page, host and attendee flows, automatic matching of everyone in a call, platform picker, embedded layout, Meet-only framing, manifest template, setup guide (`docs/google-meet.md`) | Tested against a stand-in for Google's SDK only. **Not run in a real Meet call.** Needs a Google Cloud project and `ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER` |
 | Accessibility | Three contrast defects fixed in the stylesheet (earlier in this project) | No formal audit yet |
 
 ## Not started
