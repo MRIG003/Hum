@@ -17,13 +17,13 @@ Copy these into the **Store listing** tab of the Google Workspace Marketplace SD
 
 ## Short description (about 120 characters)
 
-See how engaged your meeting is, live. Quick polls, questions and reactions inside Google Meet.
+See how engaged your meeting is, live. Quick polls, questions and reactions inside Google Meet™.
 
 ## Detailed description
 
 Engage helps meeting hosts see whether people are following along, without getting in the way.
 
-Start Engage from the Activities panel in Google Meet. People in the call join with their name, react, ask questions and answer short polls and pulse checks. The host sees engagement as the meeting goes, gets suggestions when it dips, and sees who has been quiet.
+Start Engage from the Activities panel in Google Meet™. People in the call join with their name, react, ask questions and answer short polls and pulse checks. The host sees engagement as the meeting goes, gets suggestions when it dips, and sees who has been quiet.
 
 What you get
 - Live engagement for the whole meeting, with advice when it drops.
@@ -36,6 +36,12 @@ Calm by design
 - No sound, no pop-ups over what you are sharing, and a Focus moment that pauses everything.
 - Engage only sees what people do inside Engage. It does not record audio, video or your screen, and it does not measure attention.
 - Everyone is told what the host can see before they join.
+
+Add this footnote as the last line of the detailed description:
+
+Google Meet™ is a trademark of Google LLC.
+
+**Trademark rule (from Google's rejection of 15 October 2026):** every time Google product names such as "Google Meet" appear in the app name or the descriptions, add ™ right after the name. Do not put Google product names in the app name. Keep the app name as plain **Engage**.
 
 ## Links
 
@@ -55,11 +61,13 @@ These pages exist once the latest deploy is live on Render.
 | Application icon | `icon-128.png` | 128 x 128 |
 | Small icon | `icon-32.png` | 32 x 32 |
 | Banner / tile | `tile-220x140.png` | 220 x 140 |
-| Screenshot 1 | `screenshot-1-host-panel-1280x800.png` | 1280 x 800 |
-| Screenshot 2 | `screenshot-2-participant-1280x800.png` | 1280 x 800 |
-| Screenshot 3 | `screenshot-3-console-1280x800.png` | 1280 x 800 |
+| Screenshot 1 | `shot-1-host-live.png` | 1280 x 800 |
+| Screenshot 2 | `shot-2-ask-and-results.png` | 1280 x 800 |
+| Screenshot 3 | `shot-3-person-details.png` | 1280 x 800 |
+| Screenshot 4 | `shot-4-participant-prompt.png` | 1280 x 800 |
+| Screenshot 5 | `shot-5-side-panels.png` | 1280 x 800 |
 
-The screenshots are made from the real Engage pages with a stand-in for Meet, using made-up names. Google may prefer real in-Meet screenshots. If so, take them after the add-on is installed and replace these.
+Google rejected the first set (stylised frames, small text). The new set shows the real app at full size with no browser or operating-system windows, as Google asks. Use all five: Google prefers the maximum of 5, and says to show how the app is used. The side-panel pictures are drawn by Engage itself and show no Meet interface.
 
 ## Visibility: the choice that cannot be undone
 

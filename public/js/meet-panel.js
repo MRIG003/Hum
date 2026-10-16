@@ -33,7 +33,7 @@ let state = null;
 async function connectToMeet() {
   const config = await fetch('/api/config').then((r) => r.json());
   if (!config.googleCloudProjectNumber) {
-    return fail('Not set up yet', 'Engage is not configured for Google Meet yet. The person who set up Engage needs to add the Google Cloud project number.');
+    return fail('Not set up yet', 'Engage is not configured for Google Meet™ yet. The person who set up Engage needs to add the Google Cloud project number.');
   }
   let client;
   try {
@@ -46,7 +46,7 @@ async function connectToMeet() {
     };
     client = await Promise.race([open(), timeout]);
   } catch {
-    return fail('Open Engage from Google Meet', 'This panel only works inside a Google Meet call. In Meet, choose Activities, then Engage.');
+    return fail('Open Engage from Google Meet™', 'This panel only works inside a Google Meet™ call. In Meet, choose Activities, then Engage.');
   }
   const info = await client.getMeetingInfo();
   return { client, key: linkKey(info.meetingId), meetingCode: info.meetingCode };
