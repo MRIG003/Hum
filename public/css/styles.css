@@ -318,6 +318,10 @@ body.mini { padding: 0; background: var(--bg); overflow: hidden; }
 .join-dialog { border: 1px solid var(--border); border-radius: 16px; padding: 28px; text-align: center; background: var(--surface); color: var(--text); max-width: 420px; }
 .join-dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
 .join-dialog img { display: block; margin: 12px auto; background: #fff; padding: 8px; border-radius: 10px; }
+.join-dialog { width: min(420px, calc(100vw - 32px)); overflow-wrap: anywhere; }
+.join-dialog p, .join-dialog code, .join-dialog a { overflow-wrap: anywhere; word-break: break-word; }
+.join-dialog img { max-width: 100%; height: auto; }
+button.armed { background: var(--bad); color: #fff; border-color: var(--bad); }
 .join-short { font-size: 30px; font-weight: 700; letter-spacing: 0.04em; margin: 6px 0; }
 
 /* ---------- polish: links, invite bar, folds, landing, attendee ---------- */

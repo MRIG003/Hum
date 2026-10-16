@@ -24,6 +24,20 @@ const setPanelToken = (meetingCode, token) => {
   try { sessionStorage.setItem(panelKey(meetingCode), token); } catch { /* storage can be blocked */ }
 };
 
+// The free hosting tier sleeps when idle. Wake it the moment the panel opens, and say so if it is slow.
+fetch('/healthz').catch(() => {});
+const slowHint = setTimeout(() => {
+  const loading = $('#state-loading p');
+  if (loading && !$('#state-loading').hidden) loading.textContent = 'Waking up the Engage server. This can take up to a minute the first time…';
+}, 4000);
+
+// Fetch with a deadline so a button never just sits there.
+const request = async (url, options = {}, ms = 70_000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try { return await fetch(url, { ...options, signal: controller.signal }); } finally { clearTimeout(timer); }
+};
+
 let activityClient = null;
 let code = null;
 let hostToken = null;
@@ -31,7 +45,7 @@ let socket = null;
 let state = null;
 
 async function connectToMeet() {
-  const config = await fetch('/api/config').then((r) => r.json());
+  const config = await request('/api/config').then((r) => r.json());
   if (!config.googleCloudProjectNumber) {
     return fail('Not set up yet', 'Engage is not configured for Google Meet™ yet. The person who set up Engage needs to add the Google Cloud project number.');
   }
@@ -53,7 +67,7 @@ async function connectToMeet() {
 }
 
 const lookup = async (key) => {
-  const res = await fetch(`/api/link/meet/${encodeURIComponent(key)}`);
+  const res = await request(`/api/link/meet/${encodeURIComponent(key)}`);
   return res.ok ? res.json() : null;
 };
 
@@ -84,21 +98,35 @@ async function route(ctx) {
   $('#start-form').addEventListener('submit', async (event) => {
     event.preventDefault();
     clearInterval(timer);
-    $('#start-btn').disabled = true;
+    const btn = $('#start-btn');
+    const err = $('#start-error');
+    btn.disabled = true;
+    btn.textContent = 'Starting…';
+    err.hidden = false;
+    err.style.color = '';
+    err.textContent = 'Starting Engage. If the server was asleep this can take up to a minute.';
     const title = $('#start-title').value.trim() || ($('#start-title').placeholder);
-    const res = await fetch('/api/meetings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, platform: 'meet', link: { platform: 'meet', id: ctx.key } }),
-    });
-    const body = await res.json();
-    if (res.status === 409 && body.code) return goAttendee(body.code); // someone else started it a moment ago
-    if (!res.ok) {
-      $('#start-error').textContent = body.error ?? 'Could not start Engage.';
-      $('#start-error').hidden = false;
-      $('#start-btn').disabled = false;
-      return;
+    const failStart = (message) => {
+      err.style.color = 'var(--bad)';
+      err.textContent = message;
+      btn.disabled = false;
+      btn.textContent = 'Try again';
+    };
+    let res;
+    let body;
+    try {
+      res = await request('/api/meetings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, platform: 'meet', link: { platform: 'meet', id: ctx.key } }),
+      });
+      body = await res.json();
+    } catch {
+      return failStart('Could not reach Engage. Check your connection and try again.');
     }
+    if (res.status === 409 && body.code) return goAttendee(body.code); // someone else started it a moment ago
+    if (!res.ok) return failStart(body.error ?? 'Could not start Engage.');
+    err.hidden = true;
     setPanelToken(body.code, body.hostToken);
     activityClient = ctx.client;
     startHost(body.code, body.hostToken, title);
@@ -121,6 +149,7 @@ function startHost(meetingCode, token, title) {
       state = next;
       render();
     },
+    onStatus: (status) => { $('#p-offline').hidden = status === 'online'; },
     onFatal: (message) => fail('Engage could not open', message),
     onError: (message) => toast(message),
   });
@@ -213,25 +242,48 @@ async function inviteCall() {
   }
 }
 
-const pulse = () => socket?.send({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
+const pulse = () => send({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
+
+// Sends an action; tells the host when the connection is down instead of silently doing nothing.
+const send = (message) => {
+  if (!socket || !socket.isOpen()) return toast('Not connected right now. Reconnecting, then try again.');
+  socket.send(message);
+};
+
+let endArmed = null;
+const disarmEnd = () => {
+  clearTimeout(endArmed);
+  endArmed = null;
+  const btn = $('#p-end');
+  btn.textContent = 'End meeting';
+  btn.classList.remove('armed');
+};
 
 document.addEventListener('click', (event) => {
   const el = event.target.closest('button');
   if (!el || !socket) return;
   const { action } = el.dataset;
   if (el.id === 'p-pulse' || el.id === 'p-sugg-pulse') pulse();
-  else if (action === 'floor') socket.send({ t: 'floor' });
-  else if (action === 'focus') socket.send({ t: 'focus', on: el.dataset.on === '1' });
-  else if (action === 'closeMoment') socket.send({ t: 'closeMoment' });
-  else if (action === 'dismissMoment') socket.send({ t: 'dismissMoment' });
-  else if (el.dataset.answered) socket.send({ t: 'answered', id: el.dataset.answered, answered: true });
-  else if (el.dataset.prepared) socket.send({ t: 'launchPrepared', id: el.dataset.prepared });
+  else if (action === 'floor') send({ t: 'floor' });
+  else if (action === 'focus') send({ t: 'focus', on: el.dataset.on === '1' });
+  else if (action === 'closeMoment') send({ t: 'closeMoment' });
+  else if (action === 'dismissMoment') send({ t: 'dismissMoment' });
+  else if (el.dataset.answered) send({ t: 'answered', id: el.dataset.answered, answered: true });
+  else if (el.dataset.prepared) send({ t: 'launchPrepared', id: el.dataset.prepared });
   else if (el.id === 'p-copy') copyJoinLink();
   else if (el.id === 'p-invite-btn') inviteCall();
   else if (el.id === 'p-end') {
-    if (confirm('End the meeting for everyone and build the summary?')) socket.send({ t: 'end' });
+    // Meet blocks confirm() in add-on frames, so confirm in the page with a second press.
+    if (endArmed) {
+      disarmEnd();
+      send({ t: 'end' });
+    } else {
+      el.textContent = 'Press again to end for everyone';
+      el.classList.add('armed');
+      endArmed = setTimeout(disarmEnd, 5000);
+    }
   }
 });
 
 show('state-loading');
-connectToMeet().then((ctx) => ctx && route(ctx)).catch((error) => fail('Engage could not start', error.message));
+connectToMeet().then((ctx) => { clearTimeout(slowHint); return ctx && route(ctx); }).catch((error) => fail('Engage could not start', error.message));

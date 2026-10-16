@@ -101,6 +101,7 @@ export const connect = ({ hello, onState, onWelcome, onFatal, onError, onStatus,
     send: (message) => {
       if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
     },
+    isOpen: () => ws?.readyState === WebSocket.OPEN,
     now: () => Date.now() + clock.offset,
     close: () => {
       closedByUs = true;
