@@ -429,7 +429,4 @@ body.prompting .moment-card { border-color: var(--accent); box-shadow: 0 0 0 2px
 .done-note b { display: block; font-size: 18px; margin-bottom: 4px; }
 body.embed #moment-card { order: -1; }
 
-.share-strip { display: none; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; }
-body.embed .share-strip:not([hidden]) { display: flex; }
-.share-strip .num { font-size: 18px; letter-spacing: 0.08em; }
 #link { user-select: all; overflow-wrap: anywhere; }
