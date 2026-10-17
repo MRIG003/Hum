@@ -496,9 +496,23 @@ function renderSummary() {
 async function copy(text, message) {
   try {
     await navigator.clipboard.writeText(text);
-    toast(message);
-  } catch {
-    toast('Copy failed. Select the text and copy it manually.');
+    return toast(message);
+  } catch { /* the clipboard API is blocked inside Meet frames */ }
+  const box = Object.assign(document.createElement('textarea'), { value: text });
+  box.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.append(box);
+  box.select();
+  let copied = false;
+  try { copied = document.execCommand('copy'); } catch { /* ignore */ }
+  box.remove();
+  if (copied) return toast(message);
+  toast('Could not copy. Select the link and copy it by hand.');
+  if (embedded) {
+    showFeature('invite');
+    const range = document.createRange();
+    range.selectNodeContents($('#link'));
+    getSelection().removeAllRanges();
+    getSelection().addRange(range);
   }
 }
 
@@ -733,7 +747,12 @@ if (embedded) {
   $('#feature-bar').hidden = false;
   let saved = null;
   try { saved = sessionStorage.getItem(featureKey); } catch { /* ignore */ }
-  showFeature([...featureSelect.options].some((o) => o.value === saved) ? saved : 'ask');
+  // First time in: land on Invite and share so the host has the code and link in hand.
+  showFeature([...featureSelect.options].some((o) => o.value === saved) ? saved : 'invite');
+  $('#share-strip').hidden = false;
+  $('#strip-code').textContent = code;
+  $('#strip-copy').addEventListener('click', () => copy(link(), 'Join link copied. Paste it in the meeting chat.'));
+  $('#strip-more').addEventListener('click', () => { showFeature('invite'); });
   featureSelect.addEventListener('change', () => showFeature(featureSelect.value));
 
   // The CSV is downloaded on the website after signing in; the meeting is saved to the account.
