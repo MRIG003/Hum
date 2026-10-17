@@ -115,6 +115,46 @@ function render() {
   renderGames();
   renderQuiet();
   renderAgenda();
+  trackActivity();
+}
+
+// ---- "what is new" cues for the host tools menu -------------------------------
+// Only one tool is on screen at a time in the Meet panel, so tell the host when something
+// arrives in one they are not looking at.
+const seen = { questions: null, reactionTotal: null };
+const fresh = { questions: [], reactions: 0 };
+const optionLabel = (value) => $(`#feature option[value="${value}"]`);
+const baseLabels = {};
+function trackActivity() {
+  if (!embedded) return;
+  const total = Object.values(state.reactions).reduce((a, b) => a + b, 0);
+  const current = $('#feature').value;
+  if (seen.questions) {
+    for (const q of state.questions) {
+      if (!seen.questions.has(q.id) && current !== 'questions') fresh.questions.push(q);
+    }
+    if (total > seen.reactionTotal && current !== 'reactions') fresh.reactions += total - seen.reactionTotal;
+  }
+  seen.questions = new Set(state.questions.map((q) => q.id));
+  seen.reactionTotal = total;
+  fresh.questions = fresh.questions.filter((q) => state.questions.some((x) => x.id === q.id && !x.answered));
+  paintCues();
+}
+
+function paintCues() {
+  for (const [value, text] of [['questions', fresh.questions.length ? `Questions (${fresh.questions.length} new)` : 'Questions'], ['reactions', fresh.reactions ? `Reactions (+${fresh.reactions})` : 'Reactions']]) {
+    baseLabels[value] ??= optionLabel(value).textContent;
+    optionLabel(value).textContent = text;
+  }
+  const latest = fresh.questions.at(-1);
+  const parts = [];
+  if (latest) {
+    parts.push(`<div class="banner"><span><b>${esc(latest.author)} asked:</b> ${esc(latest.text)}${fresh.questions.length > 1 ? ` <span class="muted">(+${fresh.questions.length - 1} more)</span>` : ''}</span><button class="primary small" data-view="questions">View</button></div>`);
+  }
+  if (fresh.reactions) {
+    parts.push(`<div class="banner"><span><b>${fresh.reactions} new ${fresh.reactions === 1 ? 'reaction' : 'reactions'}</b> from the room.</span><button class="small" data-view="reactions">View</button></div>`);
+  }
+  $('#notice').innerHTML = parts.join('');
 }
 
 function renderTop() {
@@ -528,7 +568,8 @@ document.addEventListener('click', async (event) => {
   if (!el) return;
   const { action, quick } = el.dataset;
 
-  if (action === 'focus') act({ t: 'focus', on: el.dataset.on === '1' });
+  if (el.dataset.view) showFeature(el.dataset.view);
+  else if (action === 'focus') act({ t: 'focus', on: el.dataset.on === '1' });
   else if (action === 'games') act({ t: 'games', on: el.dataset.on === '1' });
   else if (action === 'floor') act({ t: 'floor' });
   else if (action === 'closeMoment') act({ t: 'closeMoment' });
@@ -741,6 +782,9 @@ const showFeature = (name) => {
   }
   if (name === 'games') $('#games-fold').open = true;
   featureSelect.value = name;
+  if (name === 'questions') fresh.questions = [];
+  if (name === 'reactions') fresh.reactions = 0;
+  if (state) paintCues();
   try { sessionStorage.setItem(featureKey, name); } catch { /* ignore */ }
 };
 if (embedded) {

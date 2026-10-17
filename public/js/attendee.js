@@ -230,6 +230,9 @@ function renderBanners() {
   if (state.floorOpen && !state.focus) {
     parts.push('<div class="banner" role="status"><span><b>The host invites your view</b> on the next topic. Add a question or comment below.</span><button id="floor-go">Write something</button></div>');
   }
+  if (state.gamesOpen && !state.focus && $('#att-grid').dataset.active !== 'play') {
+    parts.push('<div class="banner" role="status"><span><b>Games are open.</b> The host opened buzzword bingo and the prediction.</span><button id="games-go">Play</button></div>');
+  }
   $('#banners').innerHTML = parts.join('');
 }
 
@@ -371,10 +374,12 @@ document.addEventListener('click', (event) => {
   const el = event.target.closest('button');
   if (!el) return;
   if (el.id === 'floor-go') return $('#ask-text').focus();
+  if (el.id === 'games-go') return $('[data-tab="play"]').click();
   if (el.id === 'presenting-off') return setPresenting(false);
   if (el.dataset.tab) {
     $('#att-grid').dataset.active = el.dataset.tab;
     for (const t of $$('#att-tabs button')) t.setAttribute('aria-selected', String(t === el));
+    if (state) renderBanners();
     return;
   }
   if (el.dataset.react) {
