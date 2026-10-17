@@ -483,7 +483,7 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         res.writeHead(302, { Location: `/j/${shortMatch[1].toUpperCase()}`, 'Cache-Control': 'no-store' });
         return res.end();
       }
-      if (/^\/h\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'host.html');
+      if (/^\/h\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'host.html', { embeddable: true });
       if (/^\/j\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'join.html', { embeddable: true });
       return await serveStatic(res, pathname);
     } catch (error) {

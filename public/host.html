@@ -29,7 +29,29 @@
   <main id="live" class="host-wrap" hidden>
     <div id="banners" class="stack"></div>
 
-    <section class="card invite" aria-label="Invite attendees">
+    <div class="feature-bar" id="feature-bar" hidden>
+      <label for="feature">Host tools</label>
+      <select id="feature" aria-label="Choose a host tool">
+        <option value="ask">Ask the room</option>
+        <option value="questions">Questions</option>
+        <option value="reactions">Reactions</option>
+        <option value="agenda">Agenda</option>
+        <option value="games">Games and automation</option>
+        <option value="people">Who has been quiet</option>
+        <option value="overview">Engagement over time</option>
+        <option value="invite">Invite and share</option>
+        <option value="export">Download CSV and account</option>
+      </select>
+    </div>
+
+    <section class="card stack" data-feature="export" aria-label="Download and account">
+      <h2>Download analytics</h2>
+      <p class="small muted">The CSV is downloaded from the Engage website, where you sign in with your host account. Your meeting is saved to your account.</p>
+      <a id="export-site" class="button-like primary" href="/login" target="_blank" rel="noopener noreferrer">Sign in and download CSV</a>
+      <button id="open-console" class="ghost small" hidden>Open the full console in a new tab</button>
+    </section>
+
+    <section class="card invite" data-feature="invite" aria-label="Invite attendees">
       <div class="invite-id">
         <span class="small muted">Meeting code</span>
         <div class="code" id="code" aria-label="Meeting code"></div>
@@ -59,7 +81,7 @@
       <div class="tile"><div class="label">Connected now</div><div class="value num" id="t-conn">0</div><div class="sub" id="t-conn-sub"></div></div>
     </section>
 
-    <section class="card" aria-label="Engagement over time">
+    <section class="card" data-feature="overview" aria-label="Engagement over time">
       <div class="card-head">
         <h2>Engagement over the meeting (live)</h2>
         <span class="chip" title="Engage only sees actions taken inside Engage">Only you can see this</span>
@@ -68,7 +90,7 @@
       <div class="legend"><span>Share of connected people with an Engage action in the last 5 minutes. Shaded bands are agenda topics.</span></div>
     </section>
 
-    <section class="card" aria-label="People who have been quiet">
+    <section class="card" data-feature="people" aria-label="People who have been quiet">
       <div class="card-head">
         <h2>Who has been quiet</h2>
         <div class="row">
@@ -88,7 +110,7 @@
 
     <div class="host-grid">
       <div class="stack">
-        <section class="card" aria-label="Launch a moment">
+        <section class="card" data-feature="ask" aria-label="Launch a moment">
           <h2>Ask the room</h2>
           <div class="tabs" role="tablist" id="moment-tabs">
             <button role="tab" aria-selected="true" data-kind="poll">Poll</button>
@@ -131,22 +153,22 @@
           </form>
         </section>
 
-        <section class="card" id="moment-card" aria-label="Current moment" hidden></section>
+        <section class="card" id="moment-card" data-feature="ask" aria-label="Current moment" hidden></section>
 
-        <section class="card" aria-label="Questions from the room">
+        <section class="card" data-feature="questions" aria-label="Questions from the room">
           <div class="card-head"><h2>Questions</h2><span class="small muted" id="q-count"></span></div>
           <div class="q-list" id="questions"></div>
         </section>
       </div>
 
       <div class="stack">
-        <section class="card" aria-label="Reactions">
+        <section class="card" data-feature="reactions" aria-label="Reactions">
           <div class="card-head"><h2>Reactions</h2><button data-action="floor" class="small" title="Invite everyone to share their view on the next topic">Open the floor</button></div>
           <p class="small muted" style="margin: -4px 0 8px">Last 2 minutes</p>
           <div class="reaction-grid" id="reactions"></div>
         </section>
 
-        <section class="card" aria-label="Agenda">
+        <section class="card" data-feature="agenda" aria-label="Agenda">
           <div class="card-head"><h2>Agenda</h2><span class="small muted">optional</span></div>
           <form id="agenda-form" class="stack" autocomplete="off">
             <textarea id="ag-text" rows="5" aria-label="Agenda, one item per line with minutes" placeholder="Intro, 8&#10;Roadmap, 16&#10;Budget, 16&#10;Risks, 15"></textarea>
@@ -155,7 +177,7 @@
           <div id="ag-list" class="stack small" style="margin-top: 10px"></div>
         </section>
 
-        <details class="card fold" aria-label="Games and automation">
+        <details class="card fold" id="games-fold" data-feature="games" aria-label="Games and automation">
           <summary><h2>Games and automation</h2><span class="chip" id="games-state"></span></summary>
 
           <div class="stack">
@@ -222,6 +244,11 @@
   </main>
 
   <main id="ended" class="host-wrap" hidden></main>
+
+  <dialog id="confirm-dialog" class="person-dialog confirm-dialog" aria-label="Confirm">
+    <p id="confirm-text"></p>
+    <div class="row" style="justify-content: flex-end; margin-top: 14px"><button id="confirm-no">Cancel</button><button id="confirm-yes" class="primary">Confirm</button></div>
+  </dialog>
 
   <dialog id="person-dialog" class="person-dialog" aria-label="Person details">
     <div id="person-body"></div>

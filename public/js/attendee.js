@@ -126,6 +126,7 @@ function render() {
   $('#points').hidden = false;
   $('#points').textContent = `${state.me.points} pts`;
   trackPresenting();
+  trackPrompting();
   renderBanners();
   renderMoment();
   renderQuestions();
@@ -194,6 +195,29 @@ function tick() {
   }
 }
 setInterval(tick, 500);
+
+// Inside the Meet panel, a launched prompt takes over the panel until it is answered or its timer
+// ends. Then a short "done" note says to go back to the meeting; everything else stays available.
+let wasPrompting = false;
+let doneTimer = null;
+function trackPrompting() {
+  const m = state.moment;
+  const open = Boolean(m && m.status === 'open' && !state.focus);
+  const unanswered = open && (m.type === 'wordcloud' ? !(Array.isArray(m.mine) && m.mine.length) : m.mine === null);
+  const prompting = embedded && unanswered && !presenting;
+  document.body.classList.toggle('prompting', prompting);
+  if (wasPrompting && !prompting) {
+    const timedOut = m && m.status === 'closed' && m.mine === null;
+    $('#done-note').innerHTML = timedOut
+      ? "<b>Time's up</b>That prompt has closed. Back to the meeting."
+      : '<b>Thanks, you are done</b>Your answer is in. Back to the meeting.';
+    $('#done-note').hidden = false;
+    clearTimeout(doneTimer);
+    doneTimer = setTimeout(() => { $('#done-note').hidden = true; }, 6000);
+  }
+  if (prompting) $('#done-note').hidden = true;
+  wasPrompting = prompting;
+}
 
 function renderBanners() {
   const parts = [];

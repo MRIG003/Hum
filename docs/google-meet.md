@@ -43,3 +43,7 @@ The host console (`/h/CODE`) and every other page still refuse to be framed.
 - **Names.** Google's SDK does not give Engage participants' names. People type their name, and Engage refuses placeholder names. Matching names to the Meet roster is not built.
 - **One live Engage meeting per Meet call.** If a recurring Meet code is reused after an Engage meeting ended, a new one can be started.
 - **Free Render plan.** The service sleeps when idle, which would delay the first open of the panel. Use a paid plan for real meetings.
+
+## Host tools inside the panel
+
+After the host presses Start Engage, the panel opens the host tools in the same frame (`/h/CODE?embed=1`). A "Host tools" dropdown switches between Ask the room, Questions, Reactions, Agenda, Games and automation, Who has been quiet, Engagement over time, Invite and share, and Download CSV. The host key stays in this tab only (sessionStorage). The CSV is the one thing that leaves Meet: its button opens the Engage website sign-in, which then lands on the full console where the export lives. Participants see a launched prompt as the only thing in their panel until they answer or its timer ends, then a short "back to the meeting" note.

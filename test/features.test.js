@@ -387,12 +387,12 @@ test('a bad link id or platform is ignored, and the link survives serialize and 
   assert.equal(back.hostSnapshot().platform, 'meet');
 });
 
-test('only the attendee page and the add-on panel can be framed, and only by Google Meet', async () => {
+test('only the attendee page, the host tools and the add-on panel can be framed, and only by Google Meet', async () => {
   const { code } = await (await post('/api/meetings', { title: 'Frames' })).json();
   const csp = async (path) => (await fetch(base + path)).headers.get('content-security-policy');
   assert.match(await csp(`/j/${code}`), /frame-ancestors 'self' https:\/\/meet\.google\.com/);
   assert.match(await csp('/meet/panel'), /frame-ancestors 'self' https:\/\/meet\.google\.com/);
-  assert.match(await csp(`/h/${code}`), /frame-ancestors 'none'/, 'the host console is never framed');
+  assert.match(await csp(`/h/${code}`), /frame-ancestors 'self' https:\/\/meet\.google\.com/, 'the host tools open inside the Meet panel');
   assert.match(await csp('/'), /frame-ancestors 'none'/);
 });
 

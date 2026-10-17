@@ -42,50 +42,6 @@
       <p class="muted">Engage will open here as soon as the host starts it for this meeting.</p>
     </section>
 
-    <div id="state-host" class="stack" hidden>
-      <div id="p-offline" class="banner warn" role="alert" hidden><span><b>Connection lost.</b> Reconnecting…</span></div>
-      <div id="p-banners" class="stack"></div>
-      <div class="tiles">
-        <div class="tile"><div class="label">Engagement</div><div class="value num" id="p-eng">0%</div><div class="sub" id="p-eng-sub"></div></div>
-        <div class="tile"><div class="label">Here now</div><div class="value num" id="p-conn">0</div><div class="sub" id="p-conn-sub"></div></div>
-      </div>
-
-      <section class="card stack" aria-label="Invite people" id="p-invite">
-        <h2>Invite people</h2>
-        <p class="small muted" id="p-invite-status">Others in this call can open Engage from Activities if the add-on is available to them. Anyone can join with this link.</p>
-        <input id="p-link" type="text" readonly aria-label="Join link">
-        <div class="row">
-          <button id="p-copy" class="small primary">Copy join link</button>
-          <button id="p-invite-btn" class="small" title="Sends the call an invitation to open Engage">Invite everyone in this call</button>
-        </div>
-      </section>
-
-      <section class="card" aria-label="Quick actions">
-        <h2>Ask the room</h2>
-        <div class="row" style="margin-top: 8px">
-          <button id="p-pulse">Pulse check</button>
-          <button data-action="floor">Open the floor</button>
-          <button id="p-focus" data-action="focus">Focus moment</button>
-        </div>
-        <div id="p-moment" style="margin-top: 10px"></div>
-      </section>
-
-      <section class="card" aria-label="Who has been quiet">
-        <div class="card-head"><h2>Who has been quiet</h2><span class="small muted">5+ min</span></div>
-        <div id="p-quiet" class="people"></div>
-        <p class="small muted">Only counts activity inside Engage.</p>
-      </section>
-
-      <section class="card" aria-label="Questions">
-        <div class="card-head"><h2>Questions</h2><span class="small muted" id="p-q-count"></span></div>
-        <div id="p-questions" class="q-list"></div>
-      </section>
-
-      <section class="card stack" aria-label="More">
-        <a id="p-console" class="button-like" target="_blank" rel="noopener noreferrer">Open the full console</a>
-        <button id="p-end" class="small danger">End meeting</button>
-      </section>
-    </div>
   </main>
   <script type="module" src="/js/meet-panel.js"></script>
 </body>

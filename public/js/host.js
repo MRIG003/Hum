@@ -3,12 +3,48 @@ import { renderChart } from './chart.js';
 
 const code = codeFromPath();
 const PROMPT_TYPES = { poll: 'poll', pulse: 'pulse check', recall: 'recall check', quiz: 'quiz', wordcloud: 'word cloud' };
+// Inside the Meet side panel the host view is shown in a frame. The host key is then kept for this
+// tab only (sessionStorage), so another Google account in the same browser never gets host controls.
+const embedded = new URLSearchParams(location.search).get('embed') === '1';
+if (embedded) document.body.classList.add('embed');
+const tokenKey = `engage.host.${code}`;
+const tokenStore = {
+  get: () => {
+    if (!embedded) return storage.get(tokenKey);
+    try { return sessionStorage.getItem(tokenKey); } catch { return null; }
+  },
+  set: (value) => {
+    if (!embedded) return storage.set(tokenKey, value);
+    try { sessionStorage.setItem(tokenKey, value); } catch { /* blocked */ }
+  },
+  remove: () => {
+    if (!embedded) return storage.remove(tokenKey);
+    try { sessionStorage.removeItem(tokenKey); } catch { /* blocked */ }
+  },
+};
 const hashToken = new URLSearchParams(location.hash.slice(1)).get('t');
 if (hashToken) {
-  storage.set(`engage.host.${code}`, hashToken);
-  history.replaceState(null, '', location.pathname);
+  tokenStore.set(hashToken);
+  history.replaceState(null, '', location.pathname + location.search);
 }
-const hostToken = storage.get(`engage.host.${code}`);
+const hostToken = tokenStore.get();
+
+// Meet blocks confirm() in add-on frames, so confirmations use an in-page dialog.
+const confirmDialog = $('#confirm-dialog');
+const confirmAction = (message, okLabel = 'Confirm') => new Promise((resolve) => {
+  $('#confirm-text').textContent = message;
+  $('#confirm-yes').textContent = okLabel;
+  const done = (value) => {
+    confirmDialog.close();
+    confirmDialog.removeEventListener('cancel', onCancel);
+    resolve(value);
+  };
+  const onCancel = () => done(false);
+  $('#confirm-yes').onclick = () => done(true);
+  $('#confirm-no').onclick = () => done(false);
+  confirmDialog.addEventListener('cancel', onCancel);
+  confirmDialog.showModal();
+});
 
 let state = null;
 let momentKind = 'poll';
@@ -469,11 +505,11 @@ async function copy(text, message) {
 $('#copy-link').addEventListener('click', () => copy(link(), 'Link copied'));
 $('#copy-message').addEventListener('click', () => copy(chatMessage(), 'Chat message copied'));
 $('#copy-host-link').addEventListener('click', () => copy(`${location.origin}/h/${code}#t=${hostToken}`, 'Private host link copied. Anyone with it can control the meeting.'));
-$('#clock-reset').addEventListener('click', () => {
-  if (confirm('Restart the meeting clock and the engagement chart from now?')) act({ t: 'resetClock' });
+$('#clock-reset').addEventListener('click', async () => {
+  if (await confirmAction('Restart the meeting clock and the engagement chart from now?', 'Restart')) act({ t: 'resetClock' });
 });
 
-document.addEventListener('click', (event) => {
+document.addEventListener('click', async (event) => {
   const el = event.target.closest('button');
   if (!el) return;
   const { action, quick } = el.dataset;
@@ -484,7 +520,7 @@ document.addEventListener('click', (event) => {
   else if (action === 'closeMoment') act({ t: 'closeMoment' });
   else if (action === 'dismissMoment') act({ t: 'dismissMoment' });
   else if (action === 'end') {
-    if (confirm('End the meeting for everyone and build the summary?')) act({ t: 'end' });
+    if (await confirmAction('End the meeting for everyone and build the summary?', 'End meeting')) act({ t: 'end' });
   } else if (quick === 'recall') {
     $('#moment-tabs [data-kind="recall"]').click();
     $('#moment-form').scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -502,7 +538,7 @@ document.addEventListener('click', (event) => {
   else if (el.dataset.mergeInto) { act({ t: 'merge', from: mergeFrom, into: el.dataset.mergeInto }); mergeFrom = null; }
   else if (el.dataset.launchPrepared) {
     const capped = el.dataset.type === 'recall' && state.recallNextAt > socket.now();
-    const override = capped && confirm(`The next recall check is available in ${formatClock(state.recallNextAt - socket.now())}. Run it now anyway?`);
+    const override = capped && await confirmAction(`The next recall check is available in ${formatClock(state.recallNextAt - socket.now())}. Run it now anyway?`, 'Run it now');
     if (!capped || override) act({ t: 'launchPrepared', id: el.dataset.launchPrepared, override });
   } else if (el.dataset.removePrompt) act({ t: 'removePrompt', id: el.dataset.removePrompt });
   else if (el.dataset.hideNudge) { hiddenNudges.add(el.dataset.hideNudge); renderBanners(); }
@@ -645,6 +681,7 @@ $('#quiet-on').addEventListener('change', sendQuiet);
 $('#quiet-every').addEventListener('change', sendQuiet);
 
 async function exportCsv() {
+  if (embedded) return window.open($('#export-site').href, '_blank', 'noopener');
   const res = await fetch(`/api/meetings/${code}/export.csv`, { headers: authHeaders() });
   if (!res.ok) return toast('Could not export. Only the host can export results.');
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await res.blob()), download: `engage-${code}.csv` });
@@ -653,11 +690,11 @@ async function exportCsv() {
 }
 
 async function deleteMeeting() {
-  if (!confirm('Delete this meeting and all its results for good? This cannot be undone.')) return;
+  if (!await confirmAction('Delete this meeting and all its results for good? This cannot be undone.', 'Delete')) return;
   const res = await fetch(`/api/meetings/${code}`, { method: 'DELETE', headers: authHeaders() });
   if (!res.ok) return toast('Could not delete the meeting.');
-  storage.remove(`engage.host.${code}`);
-  location.href = '/meetings';
+  tokenStore.remove();
+  location.href = embedded ? '/meet/panel' : '/meetings';
 }
 
 $('#export-live').addEventListener('click', exportCsv);
@@ -679,6 +716,63 @@ fetch('/api/auth/me').then((r) => r.json()).then((me) => {
     a.title = me.email;
   } else a.href = `/login?next=${encodeURIComponent(location.pathname)}`;
 }).catch(() => {});
+
+// ---- host tools menu (Meet side panel) -----------------------------------------
+const featureSelect = $('#feature');
+const featureKey = `engage.feature.${code}`;
+const showFeature = (name) => {
+  for (const el of $$('[data-feature]')) {
+    if (el.dataset.feature === name) el.removeAttribute('data-off');
+    else el.setAttribute('data-off', '');
+  }
+  if (name === 'games') $('#games-fold').open = true;
+  featureSelect.value = name;
+  try { sessionStorage.setItem(featureKey, name); } catch { /* ignore */ }
+};
+if (embedded) {
+  $('#feature-bar').hidden = false;
+  let saved = null;
+  try { saved = sessionStorage.getItem(featureKey); } catch { /* ignore */ }
+  showFeature([...featureSelect.options].some((o) => o.value === saved) ? saved : 'ask');
+  featureSelect.addEventListener('change', () => showFeature(featureSelect.value));
+
+  // The CSV is downloaded on the website after signing in; the meeting is saved to the account.
+  const consoleUrl = `/h/${code}${hostToken ? `#t=${hostToken}` : ''}`;
+  $('#export-site').href = `/login?next=${encodeURIComponent(consoleUrl)}`;
+  $('#copy-host-link').hidden = true;
+  const openConsole = $('#open-console');
+  openConsole.hidden = !hostToken;
+  openConsole.addEventListener('click', () => window.open(consoleUrl, '_blank', 'noopener'));
+  $('#show-join').hidden = true;
+  addInviteButton();
+}
+
+// "Invite everyone in this call" needs the Meet add-ons SDK, so only add it where that works.
+async function addInviteButton() {
+  try {
+    const config = await fetch('/api/config').then((r) => r.json());
+    if (!config.googleCloudProjectNumber) return;
+    const { meet } = await import('/vendor/meet.addons.mjs');
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
+    const client = await Promise.race([
+      meet.addon.createAddonSession({ cloudProjectNumber: config.googleCloudProjectNumber }).then((s) => s.createSidePanelClient()),
+      timeout,
+    ]);
+    const button = Object.assign(document.createElement('button'), { id: 'invite-call', textContent: 'Invite everyone in this call', className: 'primary' });
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        await client.startActivity();
+        toast('Invitation sent to the call');
+      } catch (error) {
+        toast(`Meet did not send the invitation (${error?.message || 'unknown reason'}). Share the link instead.`);
+      }
+      button.disabled = false;
+    });
+    $('#copy-message').before(button);
+    $('#copy-message').classList.remove('primary');
+  } catch { /* not inside Meet: the join link still works */ }
+}
 
 syncMomentForm();
 

@@ -60,6 +60,7 @@
 
   <main id="app" class="att-wrap" hidden>
     <div id="banners" class="stack"></div>
+    <div id="done-note" class="card done-note" role="status" hidden></div>
 
     <div class="tabs att-tabs" id="att-tabs" role="tablist">
       <button role="tab" aria-selected="true" data-tab="live">Live</button>
@@ -68,7 +69,7 @@
 
     <div class="att-grid" id="att-grid" data-active="live">
       <div class="col stack" data-panel="live">
-        <section class="card" aria-label="Right now">
+        <section class="card moment-card" aria-label="Right now">
           <h2>Right now</h2>
           <div id="moment"></div>
         </section>
