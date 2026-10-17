@@ -51,3 +51,7 @@ After the host presses Start Engage, the panel opens the host tools in the same 
 ## Notifying the call when the host launches something
 
 When the host launches a poll, pulse, recall check, word cloud or opens the floor, the host panel also calls `startActivity()` so Meet shows people in the call its own prompt to open Engage. It is rate limited (default once every 2 minutes, choices 1, 2 or 5) and can be switched off under "Meeting code and invite link". It only fires from an open host panel inside Meet. How Meet treats repeated calls while the activity is already running has to be checked in a real call.
+
+## Why the panel is a shell (fix for "The add-on stopped responding")
+
+Meet keeps an add-on alive only while the page it loaded in the side panel holds a live SDK session. The panel page (`/meet/panel`) therefore opens that session first thing, with the Cloud project number inlined into the HTML by the server (no config request before the handshake), and never navigates away. The host view (`/h/CODE?embed=1`) and participant view (`/j/CODE?embed=1`) run in a full-size frame inside it. The host view asks the shell to call `startActivity()` over `postMessage` (same-origin checked), so invitations and launch notifications keep working. A sleeping free-tier server still makes the first load slow; the Starter plan removes that.

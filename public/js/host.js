@@ -767,7 +767,7 @@ async function deleteMeeting() {
   const res = await fetch(`/api/meetings/${code}`, { method: 'DELETE', headers: authHeaders() });
   if (!res.ok) return toast('Could not delete the meeting.');
   tokenStore.remove();
-  location.href = embedded ? '/meet/panel' : '/meetings';
+  if (embedded && window.parent !== window) parent.location.reload(); else location.href = '/meetings';
 }
 
 $('#export-live').addEventListener('click', exportCsv);
@@ -822,52 +822,53 @@ if (embedded) {
   openConsole.hidden = !hostToken;
   openConsole.addEventListener('click', () => window.open(consoleUrl, '_blank', 'noopener'));
   $('#show-join').hidden = true;
-  addInviteButton();
 }
 
-// "Invite everyone in this call" needs the Meet add-ons SDK, so only add it where that works.
-async function addInviteButton() {
-  try {
-    const config = await fetch('/api/config').then((r) => r.json());
-    if (!config.googleCloudProjectNumber) return;
-    const { meet } = await import('/vendor/meet.addons.mjs');
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 6000));
-    const client = await Promise.race([
-      meet.addon.createAddonSession({ cloudProjectNumber: config.googleCloudProjectNumber }).then((s) => s.createSidePanelClient()),
-      timeout,
-    ]);
-    meetClient = client;
-    const prefs = notifyPrefs();
-    $('#notify-on').checked = prefs.on;
-    $('#notify-gap').value = String(prefs.gap);
-    $('#notify-opt').hidden = false;
-    const savePrefs = () => {
-      try { sessionStorage.setItem(notifyKey, JSON.stringify({ on: $('#notify-on').checked, gap: Number($('#notify-gap').value) })); } catch { /* ignore */ }
-    };
-    $('#notify-on').addEventListener('change', savePrefs);
-    $('#notify-gap').addEventListener('change', savePrefs);
-    const button = Object.assign(document.createElement('button'), { id: 'invite-call', textContent: 'Invite everyone in this call', className: 'primary' });
-    button.addEventListener('click', async () => {
-      button.disabled = true;
-      lastNotifiedAt = Date.now();
-      try {
-        await client.startActivity();
-        toast('Invitation sent to the call');
-      } catch (error) {
-        toast(`Meet did not send the invitation (${error?.message || 'unknown reason'}). Share the link instead.`);
-      }
-      button.disabled = false;
-    });
-    $('#copy-message').before(button);
-    $('#copy-message').classList.remove('primary');
-  } catch { /* not inside Meet: the join link still works */ }
-}
-
-syncMomentForm();
-
-// Close the "More" menu after choosing an action or clicking elsewhere.
-document.addEventListener('click', (event) => {
-  for (const menu of $$('.menu[open]')) {
-    if (!menu.contains(event.target) || event.target.closest('.menu-pop button')) menu.open = false;
-  }
+// "Invite everyone in this call" needs the Meet add-ons SDK. The panel page that holds the Meet
+// session answers requests from this frame, so the session stays alive while the host works here.
+let rpcSeq = 0;
+const rpc = (op) => new Promise((resolve) => {
+  const id = `${Date.now()}-${rpcSeq += 1}`;
+  const timer = setTimeout(() => { window.removeEventListener('message', onMessage); resolve({ ok: false, error: 'no answer from Meet' }); }, 8000);
+  const onMessage = (event) => {
+    if (event.origin !== location.origin || event.data?.engage !== 'rpc-result' || event.data.id !== id) return;
+    clearTimeout(timer);
+    window.removeEventListener('message', onMessage);
+    resolve(event.data);
+  };
+  window.addEventListener('message', onMessage);
+  parent.postMessage({ engage: 'rpc', op, id }, location.origin);
 });
+
+async function addInviteButton() {
+  if (window.parent === window) return;
+  const hello = await rpc('hello');
+  if (!hello.ready) return;
+  const client = { startActivity: async () => { const r = await rpc('startActivity'); if (!r.ok) throw new Error(r.error); } };
+  meetClient = client;
+  const prefs = notifyPrefs();
+  $('#notify-on').checked = prefs.on;
+  $('#notify-gap').value = String(prefs.gap);
+  $('#notify-opt').hidden = false;
+  const savePrefs = () => {
+    try { sessionStorage.setItem(notifyKey, JSON.stringify({ on: $('#notify-on').checked, gap: Number($('#notify-gap').value) })); } catch { /* ignore */ }
+  };
+  $('#notify-on').addEventListener('change', savePrefs);
+  $('#notify-gap').addEventListener('change', savePrefs);
+  const button = Object.assign(document.createElement('button'), { id: 'invite-call', textContent: 'Invite everyone in this call', className: 'primary' });
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    lastNotifiedAt = Date.now();
+    try {
+      await client.startActivity();
+      toast('Invitation sent to the call');
+    } catch (error) {
+      toast(`Meet did not send the invitation (${error?.message || 'unknown reason'}). Share the link instead.`);
+    }
+    button.disabled = false;
+  });
+  $('#copy-message').before(button);
+  $('#copy-message').classList.remove('primary');
+}
+
+if (embedded) addInviteButton();

@@ -318,7 +318,13 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
   };
 
   const servePage = async (res, file, { embeddable = false } = {}) => {
-    const body = await readFile(join(PUBLIC_DIR, file));
+    let body = await readFile(join(PUBLIC_DIR, file));
+    // The Meet panel must open its SDK session straight away, so it gets the project number inline
+    // instead of waiting for a config request (slow when the server has been asleep).
+    if (file === 'meet/panel.html') {
+      const number = String(process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER || '').replace(/\D/g, '');
+      body = Buffer.from(body.toString('utf8').replace('content=""', `content="${number}"`));
+    }
     const headers = embeddable ? { ...SECURITY_HEADERS, 'Content-Security-Policy': EMBEDDABLE_CSP } : SECURITY_HEADERS;
     res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', ...headers });
     res.end(body);

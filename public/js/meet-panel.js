@@ -2,6 +2,7 @@ import { $, $$ } from './common.js';
 
 const show = (id) => {
   for (const el of $$('#panel > section, #panel > div')) el.hidden = el.id !== id;
+  document.body.classList.toggle('app-open', id === 'state-app');
 };
 
 const fail = (title, text) => {
@@ -39,9 +40,12 @@ const request = async (url, options = {}, ms = 70_000) => {
 };
 
 
+let meetClient = null;
+
 async function connectToMeet() {
-  const config = await request('/api/config').then((r) => r.json());
-  if (!config.googleCloudProjectNumber) {
+  // Open the Meet session first thing: Meet marks an add-on as unresponsive if it does not.
+  const projectNumber = document.querySelector('meta[name="engage-project"]')?.content;
+  if (!projectNumber) {
     return fail('Not set up yet', 'Engage is not configured for Google Meet™ yet. The person who set up Engage needs to add the Google Cloud project number.');
   }
   let client;
@@ -50,13 +54,14 @@ async function connectToMeet() {
     // Outside Meet the SDK may never answer, so do not wait forever.
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
     const open = async () => {
-      const session = await meet.addon.createAddonSession({ cloudProjectNumber: config.googleCloudProjectNumber });
+      const session = await meet.addon.createAddonSession({ cloudProjectNumber: Number(projectNumber) });
       return session.createSidePanelClient();
     };
     client = await Promise.race([open(), timeout]);
   } catch {
     return fail('Open Engage from Google Meet™', 'This panel only works inside a Google Meet™ call. In Meet, choose Activities, then Engage.');
   }
+  meetClient = client;
   const info = await client.getMeetingInfo();
   return { client, key: linkKey(info.meetingId), meetingCode: info.meetingCode };
 }
@@ -67,8 +72,31 @@ const lookup = async (key) => {
 };
 
 // The host tools open in this same panel as the full host view (with its tools menu).
-const goHost = (target, token) => location.replace(`/h/${target}?embed=1#t=${encodeURIComponent(token)}`);
-const goAttendee = (target) => location.replace(`/j/${target}?embed=1`);
+// The panel page itself stays loaded, so Meet keeps seeing a live add-on.
+const openFrame = (url) => {
+  $('#app-frame').src = url;
+  show('state-app');
+};
+const goHost = (target, token) => openFrame(`/h/${target}?embed=1#t=${encodeURIComponent(token)}`);
+const goAttendee = (target) => openFrame(`/j/${target}?embed=1`);
+
+// The host and participant views run in the frame and ask this page to talk to Meet for them.
+window.addEventListener('message', async (event) => {
+  const frame = $('#app-frame');
+  const msg = event.data;
+  if (event.origin !== location.origin || event.source !== frame.contentWindow || msg?.engage !== 'rpc') return;
+  const reply = (result) => event.source.postMessage({ engage: 'rpc-result', id: msg.id, ...result }, location.origin);
+  if (msg.op === 'hello') return reply({ ok: true, ready: Boolean(meetClient) });
+  if (msg.op === 'startActivity' && meetClient) {
+    try {
+      await meetClient.startActivity();
+      return reply({ ok: true });
+    } catch (error) {
+      return reply({ ok: false, error: error?.message || error?.errorType || 'unknown reason' });
+    }
+  }
+  reply({ ok: false, error: 'unavailable' });
+});
 
 async function route(ctx) {
   const found = await lookup(ctx.key);
