@@ -62,6 +62,14 @@
         <div class="link-box" id="link"></div>
         <p class="small muted" id="invite-hint">Paste it in the meeting chat. Attendees open it in a second window, no account needed.</p>
       </div>
+      <div class="notify-opt" id="notify-opt" hidden>
+        <label class="check"><input type="checkbox" id="notify-on" checked> Notify the call when I launch something</label>
+        <div class="row small muted">Meet shows people a prompt to open Engage. At most once every
+          <select id="notify-gap" style="width: auto" aria-label="Minimum time between notifications">
+            <option value="60">1 min</option><option value="120" selected>2 min</option><option value="300">5 min</option>
+          </select>
+        </div>
+      </div>
       <div class="row invite-actions">
         <button id="copy-message" class="primary">Copy chat message</button>
         <button id="show-join" title="Show a QR code and short address you can share on screen">Show on screen</button>

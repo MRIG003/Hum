@@ -47,3 +47,7 @@ The host console (`/h/CODE`) and every other page still refuse to be framed.
 ## Host tools inside the panel
 
 After the host presses Start Engage, the panel opens the host tools in the same frame (`/h/CODE?embed=1`). A "Host tools" dropdown switches between Ask the room, Questions, Reactions, Agenda, Games and automation, Who has been quiet, Engagement over time, Invite and share, and Download CSV. The host key stays in this tab only (sessionStorage). The CSV is the one thing that leaves Meet: its button opens the Engage website sign-in, which then lands on the full console where the export lives. Participants see a launched prompt as the only thing in their panel until they answer or its timer ends, then a short "back to the meeting" note.
+
+## Notifying the call when the host launches something
+
+When the host launches a poll, pulse, recall check, word cloud or opens the floor, the host panel also calls `startActivity()` so Meet shows people in the call its own prompt to open Engage. It is rate limited (default once every 2 minutes, choices 1, 2 or 5) and can be switched off under "Meeting code and invite link". It only fires from an open host panel inside Meet. How Meet treats repeated calls while the activity is already running has to be checked in a real call.

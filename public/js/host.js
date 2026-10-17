@@ -87,7 +87,25 @@ const socket = connect({
   },
 });
 
-const act = (message) => socket.send(message);
+// Launching something also asks Meet to notify the call (rate limited), so people who are not
+// looking at the panel get Meet's own prompt to open Engage. Set once the Meet SDK session is ready.
+let meetClient = null;
+let lastNotifiedAt = 0;
+const NOTIFY_ON_ACTIONS = new Set(['launchMoment', 'launchPrepared', 'floor']);
+const notifyKey = `engage.notify.${code}`;
+const notifyPrefs = () => {
+  try { return JSON.parse(sessionStorage.getItem(notifyKey)) ?? { on: true, gap: 120 }; } catch { return { on: true, gap: 120 }; }
+};
+async function notifyCall() {
+  const prefs = notifyPrefs();
+  if (!meetClient || !prefs.on || Date.now() - lastNotifiedAt < prefs.gap * 1000) return;
+  lastNotifiedAt = Date.now();
+  try { await meetClient.startActivity(); } catch { /* the panel still updates for everyone who has it open */ }
+}
+const act = (message) => {
+  socket.send(message);
+  if (NOTIFY_ON_ACTIONS.has(message.t) && !(message.t === 'floor' && state?.floorOpen)) notifyCall();
+};
 
 // ---- rendering ------------------------------------------------------------
 
@@ -818,9 +836,20 @@ async function addInviteButton() {
       meet.addon.createAddonSession({ cloudProjectNumber: config.googleCloudProjectNumber }).then((s) => s.createSidePanelClient()),
       timeout,
     ]);
+    meetClient = client;
+    const prefs = notifyPrefs();
+    $('#notify-on').checked = prefs.on;
+    $('#notify-gap').value = String(prefs.gap);
+    $('#notify-opt').hidden = false;
+    const savePrefs = () => {
+      try { sessionStorage.setItem(notifyKey, JSON.stringify({ on: $('#notify-on').checked, gap: Number($('#notify-gap').value) })); } catch { /* ignore */ }
+    };
+    $('#notify-on').addEventListener('change', savePrefs);
+    $('#notify-gap').addEventListener('change', savePrefs);
     const button = Object.assign(document.createElement('button'), { id: 'invite-call', textContent: 'Invite everyone in this call', className: 'primary' });
     button.addEventListener('click', async () => {
       button.disabled = true;
+      lastNotifiedAt = Date.now();
       try {
         await client.startActivity();
         toast('Invitation sent to the call');
