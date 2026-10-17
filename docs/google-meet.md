@@ -55,3 +55,7 @@ When the host launches a poll, pulse, recall check, word cloud or opens the floo
 ## Why the panel is a shell (fix for "The add-on stopped responding")
 
 Meet keeps an add-on alive only while the page it loaded in the side panel holds a live SDK session. The panel page (`/meet/panel`) therefore opens that session first thing, with the Cloud project number inlined into the HTML by the server (no config request before the handshake), and never navigates away. The host view (`/h/CODE?embed=1`) and participant view (`/j/CODE?embed=1`) run in a full-size frame inside it. The host view asks the shell to call `startActivity()` over `postMessage` (same-origin checked), so invitations and launch notifications keep working. A sleeping free-tier server still makes the first load slow; the Starter plan removes that.
+
+## Meetings nobody ended
+
+The server ends a live meeting by itself after 60 minutes with no host or attendee connected (`ENGAGE_IDLE_END_MIN` changes the window; the 12 hour cap still applies). While the host has Engage open for an hour or more, the panel shows a "Meeting still running" reminder with End meeting and Keep it running (snoozes for an hour).

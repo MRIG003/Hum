@@ -66,6 +66,9 @@ if (!hostToken) $('#copy-host-link').hidden = true;
 const authHeaders = () => (hostToken ? { 'x-host-token': hostToken } : {});
 let mergeFrom = null;
 const hiddenNudges = new Set();
+const HOUR_MS = 3_600_000;
+let remindAfter = 0; // "Keep it running" snoozes the still-running reminder for another hour
+setInterval(() => { if (state?.status === 'live') renderBanners(); }, 60_000);
 
 const socket = connect({
   hello: () => ({ t: 'hello', role: 'host', code, hostToken: hostToken ?? undefined }),
@@ -212,6 +215,11 @@ function renderBanners() {
   const nudge = state.topicNudge;
   if (nudge && !hiddenNudges.has(nudge.promptId)) {
     parts.push(`<div class="banner"><div><b>${esc(nudge.topic)} is wrapping up.</b> You prepared a ${esc(PROMPT_TYPES[nudge.type] ?? nudge.type)}: “${esc(nudge.prompt)}”</div><div class="row"><button class="primary" data-launch-prepared="${esc(nudge.promptId)}" data-type="${esc(nudge.type)}">Launch it</button><button class="ghost" data-hide-nudge="${esc(nudge.promptId)}">Not now</button></div></div>`);
+  }
+  const upMs = socket.now() - state.startedAt;
+  if (upMs >= HOUR_MS && Date.now() >= remindAfter) {
+    const hours = Math.floor(upMs / HOUR_MS);
+    parts.push(`<div class="banner warn"><div><b>Meeting still running.</b> Engage has been open for ${hours} ${hours === 1 ? 'hour' : 'hours'}. If the meeting is over, end it so people see the recap. It also closes by itself an hour after everyone has left.</div><div class="row"><button class="primary small" data-action="end">End meeting</button><button class="small" data-remind-later="1">Keep it running</button></div></div>`);
   }
   if (state.floorOpen) {
     parts.push('<div class="banner"><span>The floor is open: everyone was invited to share their view on the next topic.</span></div>');
@@ -586,7 +594,8 @@ document.addEventListener('click', async (event) => {
   if (!el) return;
   const { action, quick } = el.dataset;
 
-  if (el.dataset.view) showFeature(el.dataset.view);
+  if (el.dataset.remindLater) { remindAfter = Date.now() + HOUR_MS; renderBanners(); }
+  else if (el.dataset.view) showFeature(el.dataset.view);
   else if (action === 'focus') act({ t: 'focus', on: el.dataset.on === '1' });
   else if (action === 'games') act({ t: 'games', on: el.dataset.on === '1' });
   else if (action === 'floor') act({ t: 'floor' });

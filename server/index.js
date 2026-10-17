@@ -19,6 +19,7 @@ const MEETING_TTL_MS = 12 * 60 * 60_000;
 const HOUR_MS = 60 * 60_000;
 const FLUSH_MS = 3000;
 // Ended meetings are deleted after this many hours (accounts keep theirs longer).
+const idleEndMs = () => (Number(process.env.ENGAGE_IDLE_END_MIN) || 60) * 60_000;
 const retentionMs = () => (Number(process.env.ENGAGE_RETENTION_HOURS) || 24) * HOUR_MS;
 const accountRetentionMs = () => (Number(process.env.ENGAGE_ACCOUNT_RETENTION_DAYS) || 30) * 24 * HOUR_MS;
 const BROADCAST_DELAY_MS = 150;
@@ -530,13 +531,20 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
   });
 
+  // A meeting whose host and attendees have all been gone for a while is ended by the server, so
+  // abandoned meetings do not stay live for the full 12 hours.
+  const lastPresent = new Map();
   const ticker = setInterval(() => {
     const now = clock();
+    const occupied = new Set();
+    for (const info of sockets.values()) occupied.add(info.code);
     for (const [code, meeting] of meetings) {
-      if (meeting.status === 'live' && now - meeting.createdAt > MEETING_TTL_MS) {
+      if (occupied.has(code) || !lastPresent.has(code)) lastPresent.set(code, now);
+      if (meeting.status === 'live' && (now - meeting.createdAt > MEETING_TTL_MS || now - lastPresent.get(code) > idleEndMs())) {
         meeting.end();
         dirty.add(code);
       }
+      if (meeting.status !== 'live') lastPresent.delete(code);
       const keepFor = meeting.ownerId ? accountRetentionMs() : retentionMs();
       if (meeting.status === 'ended' && now - meeting.endedAt > keepFor) {
         meetings.delete(code);

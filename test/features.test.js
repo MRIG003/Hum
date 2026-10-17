@@ -421,3 +421,29 @@ test('the join link always serves the participant page, never the host console',
   const lower = await fetch(`${base}/${code.toLowerCase()}`, { redirect: 'manual' });
   assert.equal(lower.headers.get('location'), `/j/${code}`, 'the short address also goes to the participant page');
 });
+
+// ---- abandoned meetings ----------------------------------------------------
+
+test('a live meeting with nobody connected is ended after the idle window, but not while someone is there', async () => {
+  let now = 5_000_000;
+  const app = createApp({ clock: () => now });
+  await new Promise((r) => app.server.listen(0, r));
+  const url = `http://localhost:${app.server.address().port}`;
+  const make1 = async () => (await (await fetch(`${url}/api/meetings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'Idle' }) })).json());
+  const gone = await make1();
+  const busy = await make1();
+  const ws = new WebSocket(`${url.replace('http', 'ws')}/ws`);
+  await new Promise((r) => ws.on('open', r));
+  ws.send(JSON.stringify({ t: 'hello', role: 'host', code: busy.code, hostToken: busy.hostToken }));
+  await new Promise((r) => ws.once('message', r));
+  await new Promise((r) => setTimeout(r, 1200)); // first tick notes who is present
+  now += 59 * 60_000;
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal(app.meetings.get(gone.code).status, 'live', 'still within the idle window');
+  now += 2 * 60_000;
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal(app.meetings.get(gone.code).status, 'ended', 'ended after 60 minutes with nobody connected');
+  assert.equal(app.meetings.get(busy.code).status, 'live', 'a meeting with someone connected stays live');
+  ws.close();
+  await app.close();
+});
