@@ -427,3 +427,4 @@ body.prompting .att-tabs, body.prompting .att-grid > .col > .card:not(.moment-ca
 body.prompting .moment-card { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .done-note { text-align: center; padding: 18px 12px; }
 .done-note b { display: block; font-size: 18px; margin-bottom: 4px; }
+body.embed #moment-card { order: -1; }
