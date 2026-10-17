@@ -54,7 +54,7 @@ async function connectToMeet() {
     // Outside Meet the SDK may never answer, so do not wait forever.
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
     const open = async () => {
-      const session = await meet.addon.createAddonSession({ cloudProjectNumber: Number(projectNumber) });
+      const session = await meet.addon.createAddonSession({ cloudProjectNumber: projectNumber });
       return session.createSidePanelClient();
     };
     client = await Promise.race([open(), timeout]);

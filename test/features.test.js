@@ -447,3 +447,17 @@ test('a live meeting with nobody connected is ended after the idle window, but n
   ws.close();
   await app.close();
 });
+
+test('the Meet panel gets the project number inline, and passes it to the SDK as a string', async () => {
+  process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER = '123456789';
+  const app = createApp();
+  await new Promise((r) => app.server.listen(0, r));
+  const html = await (await fetch(`http://localhost:${app.server.address().port}/meet/panel`)).text();
+  assert.match(html, /name="engage-project" content="123456789"/);
+  await app.close();
+  delete process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER;
+  const { readFileSync } = await import('node:fs');
+  const script = readFileSync(new URL('../public/js/meet-panel.js', import.meta.url), 'utf8');
+  assert.match(script, /cloudProjectNumber: projectNumber\b/, 'the Meet SDK rejects a number; it must stay text');
+  assert.doesNotMatch(script, /Number\(projectNumber\)/);
+});
