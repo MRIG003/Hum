@@ -1,5 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
@@ -317,7 +319,31 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     return true;
   };
 
-  const servePage = async (res, file, { embeddable = false } = {}) => {
+  // Text assets are sent gzipped (cached in memory) with an ETag, so a repeat load costs a 304.
+  const COMPRESSIBLE = /^(text\/|application\/javascript|application\/json|image\/svg)/;
+  const packed = new Map();
+  const sendAsset = (req, res, headers, body, { cache = true } = {}) => {
+    const type = headers['Content-Type'] ?? '';
+    const wantsGzip = /\bgzip\b/.test(req.headers['accept-encoding'] ?? '') && COMPRESSIBLE.test(type) && body.length > 800;
+    let payload = body;
+    let etag = null;
+    if (cache) {
+      const key = `${type}:${body.length}:${createHash('sha1').update(body).digest('base64url').slice(0, 20)}`;
+      etag = `"${key.split(':')[2]}${wantsGzip ? '-gz' : ''}"`;
+      if (req.headers['if-none-match'] === etag) {
+        res.writeHead(304, { ETag: etag, 'Cache-Control': headers['Cache-Control'], ...SECURITY_HEADERS });
+        return res.end();
+      }
+      if (wantsGzip) {
+        if (!packed.has(key)) packed.set(key, gzipSync(body, { level: 6 }));
+        payload = packed.get(key);
+      }
+    } else if (wantsGzip) payload = gzipSync(body, { level: 1 });
+    res.writeHead(200, { ...headers, Vary: 'Accept-Encoding', ...(wantsGzip ? { 'Content-Encoding': 'gzip' } : {}), ...(etag ? { ETag: etag } : {}) });
+    res.end(payload);
+  };
+
+  const servePage = async (req, res, file, { embeddable = false } = {}) => {
     let body = await readFile(join(PUBLIC_DIR, file));
     // The Meet panel must open its SDK session straight away, so it gets the project number inline
     // instead of waiting for a config request (slow when the server has been asleep).
@@ -326,11 +352,10 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
       body = Buffer.from(body.toString('utf8').replace('content=""', `content="${number}"`));
     }
     const headers = embeddable ? { ...SECURITY_HEADERS, 'Content-Security-Policy': EMBEDDABLE_CSP } : SECURITY_HEADERS;
-    res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', ...headers });
-    res.end(body);
+    sendAsset(req, res, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', ...headers }, body, { cache: false });
   };
 
-  const serveStatic = async (res, pathname) => {
+  const serveStatic = async (req, res, pathname) => {
     const safe = normalize(pathname).replace(/^(\.\.[/\\])+/, '');
     const file = join(PUBLIC_DIR, safe);
     if (!file.startsWith(PUBLIC_DIR)) {
@@ -339,12 +364,11 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     }
     try {
       const body = await readFile(file);
-      res.writeHead(200, {
+      sendAsset(req, res, {
         'Content-Type': MIME[extname(file)] ?? 'application/octet-stream',
         'Cache-Control': 'no-cache',
         ...SECURITY_HEADERS,
-      });
-      res.end(body);
+      }, body);
     } catch {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       res.end('Not found');
@@ -475,23 +499,22 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         return res.end();
       }
 
-      if (pathname === '/') return await servePage(res, 'index.html');
-      if (pathname === '/login') return await servePage(res, 'login.html');
-      if (pathname === '/meet/panel') return await servePage(res, 'meet/panel.html', { embeddable: true });
+      if (pathname === '/') return await servePage(req, res, 'index.html');
+      if (pathname === '/login') return await servePage(req, res, 'login.html');
+      if (pathname === '/meet/panel') return await servePage(req, res, 'meet/panel.html', { embeddable: true });
       if (pathname === '/vendor/meet.addons.mjs') {
-        res.writeHead(200, { 'Content-Type': MIME['.js'], 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS });
-        return res.end(await readFile(MEET_SDK));
+        return sendAsset(req, res, { 'Content-Type': MIME['.js'], 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS }, await readFile(MEET_SDK));
       }
-      if (pathname === '/meetings') return await servePage(res, 'meetings.html');
+      if (pathname === '/meetings') return await servePage(req, res, 'meetings.html');
       // Short address: /ABC234 goes to the join page when that meeting exists.
       const shortMatch = pathname.match(/^\/([A-Za-z0-9]{6})$/);
       if (shortMatch && meetings.has(shortMatch[1].toUpperCase())) {
         res.writeHead(302, { Location: `/j/${shortMatch[1].toUpperCase()}`, 'Cache-Control': 'no-store' });
         return res.end();
       }
-      if (/^\/h\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'host.html', { embeddable: true });
-      if (/^\/j\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(res, 'join.html', { embeddable: true });
-      return await serveStatic(res, pathname);
+      if (/^\/h\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(req, res, 'host.html', { embeddable: true });
+      if (/^\/j\/[A-Za-z0-9]{6}$/.test(pathname)) return await servePage(req, res, 'join.html', { embeddable: true });
+      return await serveStatic(req, res, pathname);
     } catch (error) {
       if (error instanceof AuthError) return json(res, error.status, { error: error.message });
       console.error(error);
