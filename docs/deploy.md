@@ -57,3 +57,12 @@ The container starts as root only to make the data folder writable, then runs th
 ## Rolling back
 
 Redeploy the previous image or commit. Meetings are kept on the disk. A rollback to a build from before persistence would not read the database, so avoid rolling back past this release once meetings are stored.
+
+## Settings for the landing page and demo
+
+| Setting | What it does |
+|---|---|
+| `ENGAGE_CLARITY_ID` | Microsoft Clarity project ID. When set, Clarity loads on the home page only (never in the Meet panel, meetings, the demo or the host pages) and the home page's content policy allows Clarity's hosts. Unset means no analytics. The ID is not a secret. |
+| `ENGAGE_PUBLIC_URL` | The one preferred address (for example `https://engage.neuronlab.in`). Used for share cards, canonical links and the sitemap. Without it the request's host name is used. |
+
+`/try` is a public demo: a throwaway meeting with a made-up participant, never stored, ended after 30 minutes and removed a few minutes later (at most 60 at once).

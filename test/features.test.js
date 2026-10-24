@@ -461,3 +461,82 @@ test('the Meet panel gets the project number inline, and passes it to the SDK as
   assert.match(script, /cloudProjectNumber: projectNumber\b/, 'the Meet SDK rejects a number; it must stay text');
   assert.doesNotMatch(script, /Number\(projectNumber\)/);
 });
+
+// ---- public demo, share cards, analytics -----------------------------------
+
+const withEnv = async (env, fn) => {
+  const saved = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, env);
+  try { return await fn(); } finally { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } }
+};
+const boot = async () => {
+  const app = createApp();
+  await new Promise((r) => app.server.listen(0, r));
+  return { app, url: `http://localhost:${app.server.address().port}` };
+};
+
+test('the landing page has share-card tags with absolute addresses, robots.txt and a sitemap', async () => {
+  const { app, url } = await boot();
+  const html = await (await fetch(`${url}/`)).text();
+  assert.match(html, /<meta name="description" content="[^"]{40,}/);
+  assert.match(html, new RegExp(`property="og:image" content="${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/og.png"`));
+  assert.ok(!html.includes('__BASE__'), 'no placeholder is left in the page');
+  const robots = await (await fetch(`${url}/robots.txt`)).text();
+  assert.match(robots, /Disallow: \/j\//);
+  assert.match(robots, /Sitemap: .*\/sitemap\.xml/);
+  const sitemap = await (await fetch(`${url}/sitemap.xml`)).text();
+  assert.match(sitemap, /<loc>.*\/try<\/loc>/);
+  assert.equal((await fetch(`${url}/og.png`)).headers.get('content-type'), 'image/png');
+  await app.close();
+});
+
+test('Microsoft Clarity loads only on the landing page, and only when configured', async () => {
+  await withEnv({ ENGAGE_CLARITY_ID: '' }, async () => {
+    const { app, url } = await boot();
+    const res = await fetch(`${url}/`);
+    assert.ok(!(await res.text()).includes('clarity.ms'), 'off by default');
+    assert.ok(!res.headers.get('content-security-policy').includes('clarity'));
+    await app.close();
+  });
+  await withEnv({ ENGAGE_CLARITY_ID: 'abcd1234ef' }, async () => {
+    const { app, url } = await boot();
+    const home = await fetch(`${url}/`);
+    assert.match(await home.text(), /src="https:\/\/www\.clarity\.ms\/tag\/abcd1234ef"/);
+    assert.match(home.headers.get('content-security-policy'), /script-src 'self' https:\/\/www\.clarity\.ms/);
+    const { code } = await (await fetch(`${url}/api/meetings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: 'x' }) })).json();
+    for (const path of ['/try', '/meet/panel', `/h/${code}`, `/j/${code}`, '/privacy.html']) {
+      const res = await fetch(`${url}${path}`);
+      assert.ok(!(await res.text()).includes('clarity.ms'), `${path} has no analytics`);
+      assert.ok(!res.headers.get('content-security-policy').includes('clarity'), `${path} policy has no analytics hosts`);
+    }
+    await app.close();
+  });
+  await withEnv({ ENGAGE_CLARITY_ID: '"><script>x' }, async () => {
+    const { app, url } = await boot();
+    assert.ok(!(await (await fetch(`${url}/`)).text()).includes('clarity.ms'), 'a malformed id is ignored');
+    await app.close();
+  });
+});
+
+test('a demo meeting is throwaway: fixed title, never stored, never claimed, ends on time', async () => {
+  let now = 9_000_000;
+  const store = new (await import('../server/store.js')).MemoryStore();
+  const app = createApp({ clock: () => now, store });
+  await new Promise((r) => app.server.listen(0, r));
+  const url = `http://localhost:${app.server.address().port}`;
+  const res = await fetch(`${url}/api/meetings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ demo: true, title: 'Hacked title' }) });
+  assert.equal(res.status, 201);
+  const demo = await res.json();
+  assert.equal(demo.expiresAt, now + 30 * 60_000);
+  assert.equal(app.meetings.get(demo.code).title, 'Demo meeting');
+  assert.equal(app.meetings.get(demo.code).ownerId ?? null, null);
+  await new Promise((r) => setTimeout(r, 3500)); // a flush happens
+  assert.equal(store.meetings.size, 0, 'nothing is saved for a demo');
+  now += 31 * 60_000;
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal(app.meetings.get(demo.code).status, 'ended', 'ended after 30 minutes');
+  now += 6 * 60_000;
+  await new Promise((r) => setTimeout(r, 1200));
+  assert.equal(app.meetings.has(demo.code), false, 'and removed a few minutes later');
+  await app.close();
+});

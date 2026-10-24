@@ -16,6 +16,8 @@ const MEET_SDK = join(ROOT_DIR, 'node_modules', '@googleworkspace', 'meet-addons
 const PUBLIC_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const PORT = Number(process.env.PORT) || 3000;
 const MEETING_TTL_MS = 12 * 60 * 60_000;
+const DEMO_MS = 30 * 60_000; // public /try demo meetings are throwaway
+const MAX_LIVE_DEMOS = 60;
 const HOUR_MS = 60 * 60_000;
 const FLUSH_MS = 3000;
 // Ended meetings are deleted after this many hours (accounts keep theirs longer).
@@ -41,6 +43,16 @@ const CSP = (frameAncestors) =>
 // Only the add-on panel and the attendee page may be framed, and only by Google Meet.
 const EMBEDDABLE_CSP = CSP("'self' https://meet.google.com");
 
+// Microsoft Clarity runs on the landing page only (never in the Meet panel or a meeting). It is
+// switched on by setting ENGAGE_CLARITY_ID, and only then does the page's policy allow its hosts.
+const CLARITY_ID = () => {
+  const id = String(process.env.ENGAGE_CLARITY_ID || '').trim();
+  return /^[a-z0-9]{6,20}$/i.test(id) ? id : null;
+};
+const LANDING_CSP = (clarityId) => clarityId
+  ? `default-src 'self'; script-src 'self' https://www.clarity.ms https://scripts.clarity.ms; connect-src 'self' ws: wss: https://*.clarity.ms https://c.bing.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.clarity.ms https://c.bing.com; base-uri 'none'; frame-ancestors 'none'`
+  : null;
+
 const SECURITY_HEADERS = {
   'Content-Security-Policy': CSP("'none'"),
   'X-Content-Type-Options': 'nosniff',
@@ -64,10 +76,11 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     meetings.set(restored.code, restored);
   }
 
+  const demos = new Map(); // code -> expiry time for throwaway demo meetings (never stored)
   const flush = () => {
     for (const code of dirty) {
       const meeting = meetings.get(code);
-      if (meeting) store.saveMeeting(code, meeting.ownerId, meeting.serialize());
+      if (meeting && !demos.has(code)) store.saveMeeting(code, meeting.ownerId, meeting.serialize());
     }
     dirty.clear();
   };
@@ -259,9 +272,13 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     process.env.ENGAGE_PUBLIC_URL?.startsWith('https:') ||
     (Boolean(process.env.TRUST_PROXY) && req.headers['x-forwarded-proto'] === 'https');
 
-  const publicBase = (req) =>
-    process.env.ENGAGE_PUBLIC_URL?.replace(/\/$/, '') ||
-    `${isHttps(req) ? 'https' : 'http'}://${req.headers.host ?? 'localhost'}`;
+  // The host name ends up in share-card tags and the sitemap, so only a plain host name is accepted.
+  const publicBase = (req) => {
+    const fixed = process.env.ENGAGE_PUBLIC_URL?.replace(/\/$/, '');
+    if (fixed) return fixed;
+    const host = String(req.headers.host ?? '');
+    return `${isHttps(req) ? 'https' : 'http'}://${/^[a-z0-9.-]+(:\d+)?$/i.test(host) ? host : 'localhost'}`;
+  };
 
   // The caller may manage a meeting if they hold the private host token or own it.
   const canManage = (req, meeting) => {
@@ -346,13 +363,26 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
 
   const servePage = async (req, res, file, { embeddable = false } = {}) => {
     let body = await readFile(join(PUBLIC_DIR, file));
+    let csp = null;
+    if (file === 'index.html' || file === 'try.html') {
+      const base = publicBase(req);
+      let html = body.toString('utf8').replaceAll('__BASE__', base);
+      const clarity = file === 'index.html' ? CLARITY_ID() : null;
+      if (clarity) {
+        html = html.replace('</head>', `  <script async src="https://www.clarity.ms/tag/${clarity}"></script>\n</head>`);
+        csp = LANDING_CSP(clarity);
+      }
+      body = Buffer.from(html);
+    }
     // The Meet panel must open its SDK session straight away, so it gets the project number inline
     // instead of waiting for a config request (slow when the server has been asleep).
     if (file === 'meet/panel.html') {
       const number = String(process.env.ENGAGE_GOOGLE_CLOUD_PROJECT_NUMBER || '').replace(/\D/g, '');
       body = Buffer.from(body.toString('utf8').replace('content=""', `content="${number}"`));
     }
-    const headers = embeddable ? { ...SECURITY_HEADERS, 'Content-Security-Policy': EMBEDDABLE_CSP } : SECURITY_HEADERS;
+    const headers = embeddable
+      ? { ...SECURITY_HEADERS, 'Content-Security-Policy': EMBEDDABLE_CSP }
+      : csp ? { ...SECURITY_HEADERS, 'Content-Security-Policy': csp } : SECURITY_HEADERS;
     sendAsset(req, res, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-store', ...headers }, body, { cache: false });
   };
 
@@ -394,6 +424,8 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
           return json(res, 429, { error: 'Too many meetings created. Try again later.' });
         }
         const body = await readJson(req);
+        const demo = body.demo === true;
+        if (demo && demos.size >= MAX_LIVE_DEMOS) return json(res, 429, { error: 'The demo is busy right now. Try again in a minute.' });
         let code = newCode();
         while (meetings.has(code)) code = newCode();
         const link = body.link && typeof body.link === 'object' ? body.link : null;
@@ -403,16 +435,20 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         }
         const meeting = new Meeting({
           code,
-          title: body.title,
-          expected: body.expected,
-          agenda: body.agenda,
+          title: demo ? 'Demo meeting' : body.title,
+          expected: demo ? undefined : body.expected,
+          agenda: demo ? 'Welcome, 5\nDiscussion, 10\nWrap up, 5' : body.agenda,
           platform: PLATFORMS.includes(body.platform) ? body.platform : link?.platform,
           link,
           clock,
         });
         const user = sameOrigin(req) ? auth.userFromRequest(req) : null;
-        if (user) meeting.claim(user.id);
+        if (user && !demo) meeting.claim(user.id);
         meetings.set(code, meeting);
+        if (demo) {
+          demos.set(code, clock() + DEMO_MS);
+          return json(res, 201, { code, hostToken: meeting.hostToken, expiresAt: demos.get(code) });
+        }
         dirty.add(code);
         return json(res, 201, { code, hostToken: meeting.hostToken });
       }
@@ -502,6 +538,19 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
 
       if (pathname === '/') return await servePage(req, res, 'index.html');
       if (pathname === '/login') return await servePage(req, res, 'login.html');
+      if (pathname === '/try') return await servePage(req, res, 'try.html');
+      if (req.method === 'GET' && pathname === '/robots.txt') {
+        const text = `User-agent: *\nAllow: /\nDisallow: /h/\nDisallow: /j/\nDisallow: /api/\nDisallow: /meet/\nSitemap: ${publicBase(req)}/sitemap.xml\n`;
+        res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS });
+        return res.end(text);
+      }
+      if (req.method === 'GET' && pathname === '/sitemap.xml') {
+        const base = publicBase(req);
+        const urls = ['/', '/try', '/privacy.html', '/terms.html', '/support.html'];
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${base}${u}</loc></url>`).join('\n')}\n</urlset>\n`;
+        res.writeHead(200, { 'Content-Type': 'application/xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS });
+        return res.end(xml);
+      }
       if (pathname === '/meet/panel') return await servePage(req, res, 'meet/panel.html', { embeddable: true });
       if (pathname === '/vendor/meet.addons.mjs') {
         return sendAsset(req, res, { 'Content-Type': MIME['.js'], 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS }, await readFile(MEET_SDK));
@@ -545,6 +594,18 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         dirty.add(code);
       }
       if (meeting.status !== 'live') lastPresent.delete(code);
+      const demoEnds = demos.get(code);
+      if (demoEnds !== undefined) {
+        if (meeting.status === 'live' && now >= demoEnds) {
+          meeting.end();
+          scheduleBroadcast(code);
+        }
+        if (now >= demoEnds + 5 * 60_000) {
+          meetings.delete(code);
+          demos.delete(code);
+          continue;
+        }
+      }
       const keepFor = meeting.ownerId ? accountRetentionMs() : retentionMs();
       if (meeting.status === 'ended' && now - meeting.endedAt > keepFor) {
         meetings.delete(code);

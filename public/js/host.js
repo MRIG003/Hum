@@ -819,7 +819,9 @@ if (embedded) {
   let saved = null;
   try { saved = sessionStorage.getItem(featureKey); } catch { /* ignore */ }
   // First time in: land on the meeting code and invite link; after that the host's last tool is remembered.
-  showFeature([...featureSelect.options].some((o) => o.value === saved) ? saved : 'invite');
+  const wanted = new URLSearchParams(location.search).get('tool');
+  const known = (name) => [...featureSelect.options].some((o) => o.value === name);
+  showFeature(known(wanted) ? wanted : known(saved) ? saved : 'invite');
 
   featureSelect.addEventListener('change', () => showFeature(featureSelect.value));
 

@@ -55,6 +55,12 @@ async function start() {
   $('#gate-sub').textContent = meeting.title;
   if (identity?.pid) return join();
   gate.hidden = false;
+  // The public demo opens the participant view with a name already filled in.
+  const preset = new URLSearchParams(location.search).get('name');
+  if (embedded && preset) {
+    $('#name').value = preset.slice(0, 60);
+    return $('#join-form').requestSubmit();
+  }
   $('#name').focus();
 }
 

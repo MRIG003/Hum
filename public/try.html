@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Try Engage · live demo</title>
+  <meta name="description" content="Try Engage in your browser: run a poll as the host on the left and answer it as a participant on the right. No sign-up, no Meet call needed.">
+  <link rel="canonical" href="__BASE__/try">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Try Engage: live demo">
+  <meta property="og:description" content="Be the host and a participant at the same time. See who goes quiet, live.">
+  <meta property="og:url" content="__BASE__/try">
+  <meta property="og:image" content="__BASE__/og.png">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="try">
+    <header class="row spread">
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Engage</a>
+      <span class="row"><span class="chip num" id="try-clock" title="This demo meeting is deleted when the timer ends">Starting…</span><a href="/" class="small">Back to the site</a></span>
+    </header>
+
+    <section class="try-intro">
+      <h1>Try Engage in your browser</h1>
+      <p class="muted">You are the host on the left and a participant on the right, both wired to a real, throwaway meeting. No sign-up, no Meet call. It is deleted when the timer ends.</p>
+      <ol class="small">
+        <li>On the left, open <b>Host tools</b> and choose <b>Ask the room</b>. Write a question, add two options and press <b>Launch</b>.</li>
+        <li>On the right, the question fills the participant's panel. Answer it, then watch the host side update.</li>
+        <li>Send a reaction or a question from the right, and see the host get a cue on the left.</li>
+      </ol>
+    </section>
+
+    <p id="try-error" class="banner warn" role="alert" hidden></p>
+
+    <div class="try-stage" id="try-stage" hidden>
+      <figure>
+        <figcaption><b>Host</b> <span class="muted">(what you see in the Meet side panel)</span></figcaption>
+        <iframe id="host-frame" title="Host view" class="try-frame"></iframe>
+      </figure>
+      <figure>
+        <figcaption><b>Participant</b> <span class="muted">(what everyone else sees)</span></figcaption>
+        <iframe id="part-frame" title="Participant view" class="try-frame"></iframe>
+      </figure>
+    </div>
+
+    <section id="try-over" class="card stack" hidden>
+      <h2>The demo meeting has ended</h2>
+      <p class="muted">Demo meetings are deleted after 30 minutes.</p>
+      <button id="try-again" class="primary">Start a new demo</button>
+    </section>
+
+    <section class="card stack">
+      <h2>Ready to use it in a real meeting?</h2>
+      <p class="muted">In Google Meet, open <b>Activities</b> and choose <b>Engage</b>, or <a href="/">start a meeting here</a> for Zoom, Teams or any other tool.</p>
+    </section>
+  </main>
+  <script type="module" src="/js/try.js"></script>
+</body>
+</html>

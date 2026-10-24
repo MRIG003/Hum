@@ -3,7 +3,21 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Engage</title>
+  <title>Engage: see who has gone quiet in your Google Meet</title>
+  <meta name="description" content="Engage is a Google Meet side-panel add-on. Run quick polls, recall checks and Q&amp;A, and see live who has gone quiet, so no one is lost in a long session. Free to try in your browser.">
+  <link rel="canonical" href="__BASE__/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Engage">
+  <meta property="og:title" content="Engage: see who has gone quiet in your Google Meet">
+  <meta property="og:description" content="Polls, recall checks and Q&amp;A in the Meet side panel, plus a live view of who has stopped taking part. Try it in your browser.">
+  <meta property="og:url" content="__BASE__/">
+  <meta property="og:image" content="__BASE__/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Engage: see who has gone quiet in your Google Meet">
+  <meta name="twitter:description" content="Polls, recall checks and Q&amp;A in the Meet side panel, plus a live view of who has stopped taking part.">
+  <meta name="twitter:image" content="__BASE__/og.png">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/styles.css">
 </head>
@@ -16,8 +30,12 @@
 
     <div class="landing-grid">
       <section class="hero">
-        <h1>Keep everyone in the meeting, not just the loudest few.</h1>
-        <p>Engage runs beside Google Meet™, Zoom, Teams or Zoho. Paste one link in the meeting chat and attendees join in a second window with no sign-up.</p>
+        <h1>See who has gone quiet in your meeting, while it is still running.</h1>
+        <p>Engage runs in the Google Meet™ side panel. Ask a quick poll, check that the point landed, take questions, and watch who has stopped taking part. Also works beside Zoom, Teams and Zoho with one link.</p>
+        <div class="cta-row">
+          <a class="button-like primary" href="/try">Try the live demo</a>
+          <a class="button-like" href="#start">Start a meeting</a>
+        </div>
         <ul class="bullets">
           <li>Reactions, questions and quick polls that take seconds</li>
           <li>A host view of the room's mood, with names of anyone who has gone quiet</li>
@@ -28,12 +46,25 @@
           <li><b>Paste the link in your meeting chat.</b> Attendees open it in a second window.</li>
           <li><b>Watch engagement over time.</b> Engage suggests what to do when it dips.</li>
         </ol>
+        <section class="why" aria-label="Why Engage">
+          <h2>What Engage adds to polls and Q&amp;A</h2>
+          <table class="compare">
+            <thead><tr><th></th><th>Typical poll and Q&amp;A tools</th><th>Engage</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">Who has stopped taking part</th><td>Often only totals per question</td><td class="yes">Live list of quiet people, with per-person detail</td></tr>
+              <tr><th scope="row">Did the point land?</th><td>Not a built-in idea</td><td class="yes">Recall check, with a "Missed that" answer</td></tr>
+              <tr><th scope="row">How the room is doing</th><td>After the session, if at all</td><td class="yes">Engagement over time, with a suggestion when it dips</td></tr>
+              <tr><th scope="row">Where it runs</th><td>A separate site or tab</td><td class="yes">Inside the Meet side panel</td></tr>
+              <tr><th scope="row">What it records</th><td>Varies</td><td class="yes">Only actions inside Engage. No audio, video or screen</td></tr>
+            </tbody>
+          </table>
+        </section>
         <div class="pills" aria-label="Principles"><span class="chip">Calm: no sound, no pop-ups over your screen</span><span class="chip">Transparent: everyone is told what the host can see</span></div>
       </section>
 
       <div class="stack">
-        <form id="create" class="card stack" autocomplete="off">
-          <h2>Start a meeting</h2>
+        <form id="create" class="card stack" autocomplete="off" aria-labelledby="start">
+          <h2 id="start">Start a meeting</h2>
           <div>
             <label for="title">Meeting title</label>
             <input id="title" type="text" maxlength="80" placeholder="Q3 roadmap review" required>
@@ -70,7 +101,7 @@
         </form>
       </div>
     </div>
-    <footer class="small muted"><a href="/privacy.html">How Engage handles data</a> · <a href="/terms.html">Terms</a> · <a href="/support.html">Support</a><br>Google Meet™ is a trademark of Google LLC. Zoom, Microsoft Teams and Zoho Meeting are trademarks of their respective owners.</footer>
+    <footer class="small muted"><a href="/try">Live demo</a> · <a href="/privacy.html">How Engage handles data</a> · <a href="/terms.html">Terms</a> · <a href="/support.html">Support</a><br>Google Meet™ is a trademark of Google LLC. Zoom, Microsoft Teams and Zoho Meeting are trademarks of their respective owners.</footer>
   </main>
   <script type="module" src="/js/index.js"></script>
 </body>
