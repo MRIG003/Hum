@@ -455,3 +455,8 @@ body.app-open .panel { max-width: none; padding: 0; gap: 0; height: 100vh; }
 a.button-like.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 a.button-like.primary:hover { filter: brightness(1.08); background: var(--accent); }
 .why { margin-top: 28px; }
+
+body.embed #ended { padding: 10px 12px 40px; display: grid; gap: 12px; }
+body.embed #ended > .row.spread { flex-wrap: wrap; }
+body.embed .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+body.embed #ended .tile .sub { display: block; font-size: 11px; }

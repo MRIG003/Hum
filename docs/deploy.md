@@ -66,3 +66,12 @@ Redeploy the previous image or commit. Meetings are kept on the disk. A rollback
 | `ENGAGE_PUBLIC_URL` | The one preferred address (for example `https://engage.neuronlab.in`). Used for share cards, canonical links and the sitemap. Without it the request's host name is used. |
 
 `/try` is a public demo: a throwaway meeting with a made-up participant, never stored, ended after 30 minutes and removed a few minutes later (at most 60 at once).
+
+## Email (Resend)
+
+| Setting | What it does |
+|---|---|
+| `ENGAGE_RESEND_API_KEY` | A Resend API key with sending access only. Secret. |
+| `ENGAGE_MAIL_FROM` | The From address, on a domain verified in Resend, for example `Engage <hello@neuronlab.in>`. |
+
+With either unset nothing is sent; the server only logs that an email was skipped. Engage sends: the email confirmation at sign-up, password reset links (one use, 30 minutes), and the host's coach summary. The summary goes only to the account email of the meeting's owner, once that address is confirmed: automatically when the meeting ends, or from "Email me the summary" in the summary (at most once every 10 minutes). Meetings that ended before this feature are never emailed after a restart.

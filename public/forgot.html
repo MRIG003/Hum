@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engage · Forgot password</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="center-card">
+    <a href="/" class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</a>
+    <form id="forgot" class="card stack" autocomplete="on" data-page="forgot">
+      <h1>Forgot your password?</h1>
+      <p class="muted small">Enter the email you signed up with. If it has an account, we send a link that works once and expires in 30 minutes.</p>
+      <div><label for="email">Email</label><input id="email" type="email" autocomplete="email" maxlength="254" required></div>
+      <p id="msg" class="small" role="status" hidden></p>
+      <button class="primary" type="submit" id="go">Send reset link</button>
+      <a class="small" href="/login">Back to sign in</a>
+    </form>
+  </main>
+  <script type="module" src="/js/account.js"></script>
+</body>
+</html>

@@ -521,7 +521,8 @@ function renderSummary() {
 
   ended.innerHTML = `
     <div class="row spread"><div><h1>Meeting summary</h1><p class="muted">${esc(state.title)}</p></div>
-      <div class="row"><button id="copy-summary">Copy as text</button><button id="download-summary" class="primary">Download .md</button><button id="export-csv">Export CSV</button><a href="/"><button>New meeting</button></a><button id="delete-meeting" class="danger">Delete meeting</button></div></div>
+      <div class="row"><button id="copy-summary">Copy as text</button><button id="download-summary" class="primary">Download .md</button><button id="export-csv">Export CSV</button><button id="email-summary" class="primary">Email me the summary</button><a href="/"><button>New meeting</button></a><button id="delete-meeting" class="danger">Delete meeting</button></div></div>
+    <div id="email-note" class="banner" role="status" hidden></div>
     <div class="summary-grid">${tiles}</div>
     ${coach}
     ${peopleCard}
@@ -547,6 +548,14 @@ function renderSummary() {
     segments: s.agenda,
   });
   $('#export-csv').onclick = exportCsv;
+  $('#email-summary').onclick = emailSummary;
+  if (embedded && window.parent !== window) {
+    // Inside Meet the site's home page cannot open in this frame, so "New meeting" restarts the panel.
+    const again = $('#ended a[href="/"]');
+    again.removeAttribute('href');
+    again.querySelector('button').textContent = 'Start another meeting';
+    again.addEventListener('click', (event) => { event.preventDefault(); parent.location.reload(); });
+  }
   $('#delete-meeting').onclick = deleteMeeting;
   $('#copy-summary').onclick = () => copy(summaryText(s), 'Summary copied');
   $('#download-summary').onclick = () => {
@@ -769,6 +778,27 @@ async function exportCsv() {
   const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await res.blob()), download: `engage-${code}.csv` });
   a.click();
   URL.revokeObjectURL(a.href);
+}
+
+// The summary goes to the email on the host's account, once it is confirmed. A host who has not
+// signed in is sent to the website to do that; the meeting is then saved to their account.
+async function emailSummary() {
+  const button = $('#email-summary');
+  const note = $('#email-note');
+  const showNote = (html) => { note.innerHTML = html; note.hidden = false; };
+  button.disabled = true;
+  try {
+    const res = await fetch(`/api/meetings/${code}/email-summary`, { method: 'POST', headers: authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return showNote(esc(body.error ?? 'Could not send the summary.'));
+    if (body.status === 'sent') return showNote(`Summary sent to <b>${esc(body.to)}</b>. It can take a minute to arrive.`);
+    if (body.status === 'verify') return showNote('Confirm your email first. We sent you a link when you signed up. You can ask for another on the My meetings page.');
+    if (body.status === 'unavailable') return showNote('Email is not switched on for this server yet.');
+    const next = `/h/${code}${hostToken ? `#t=${hostToken}` : ''}`;
+    showNote(`<span>To get the summary by email, sign in on the Engage website. This meeting is then saved to your account and the summary is sent to you.</span> <a class="button-like primary" href="/login?next=${encodeURIComponent(next)}" target="_blank" rel="noopener noreferrer">Sign in</a>`);
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function deleteMeeting() {

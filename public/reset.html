@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Engage · Choose a new password</title>
+  <meta name="robots" content="noindex">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+  <main class="center-card">
+    <a href="/" class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</a>
+    <form id="reset" class="card stack" autocomplete="on" data-page="reset">
+      <h1>Choose a new password</h1>
+      <div><label for="password">New password</label><input id="password" type="password" autocomplete="new-password" minlength="8" maxlength="200" required><p class="small muted">At least 8 characters.</p></div>
+      <p id="msg" class="small" role="alert" hidden></p>
+      <button class="primary" type="submit" id="go">Save and sign in</button>
+      <a class="small" href="/forgot">Need a new link?</a>
+    </form>
+  </main>
+  <script type="module" src="/js/account.js"></script>
+</body>
+</html>

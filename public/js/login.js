@@ -14,6 +14,7 @@ const sync = () => {
   $('#auth-toggle').textContent = registering ? 'I already have an account' : 'Create an account instead';
   $('#password').autocomplete = registering ? 'new-password' : 'current-password';
   $('#pw-hint').hidden = !registering;
+  $('#forgot-link').hidden = registering;
 };
 
 $('#auth-toggle').addEventListener('click', () => {

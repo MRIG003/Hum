@@ -114,6 +114,7 @@ export class Meeting {
     this.startedAt = this.createdAt;
     this.status = 'live';
     this.endedAt = null;
+    this.summaryEmailedAt = null; // set once the host has been emailed the summary
 
     this.participants = new Map();
     this.actions = [];
@@ -1190,6 +1191,7 @@ export class Meeting {
       startedAt: this.startedAt,
       status: this.status,
       endedAt: this.endedAt,
+      summaryEmailedAt: this.summaryEmailedAt,
       participants: [...this.participants.values()].map((p) => ({
         id: p.id,
         tokenHash: p.tokenHash,
@@ -1258,6 +1260,7 @@ export class Meeting {
     m.startedAt = data.startedAt;
     m.status = data.status;
     m.endedAt = data.endedAt;
+    m.summaryEmailedAt = data.summaryEmailedAt ?? null;
     for (const p of data.participants) {
       m.participants.set(p.id, {
         ...p,

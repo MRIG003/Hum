@@ -11,6 +11,11 @@ const render = (data) => {
     : '<p class="muted">No meetings yet. Meetings you start while signed in appear here.</p>';
 };
 
+$('#verify-resend').addEventListener('click', async () => {
+  const res = await fetch('/api/auth/verify/resend', { method: 'POST' });
+  toast(res.ok ? 'Sent. Check your inbox.' : 'Could not send it. Try again in a few minutes.');
+});
+
 const load = async () => {
   const res = await fetch('/api/my/meetings');
   if (res.status === 401) {
@@ -18,6 +23,8 @@ const load = async () => {
     return;
   }
   render(await res.json());
+  const me = await fetch('/api/auth/me').then((r) => r.json()).catch(() => ({}));
+  $('#verify-banner').hidden = !me.email || me.verified || !me.mail;
 };
 
 document.addEventListener('click', async (event) => {

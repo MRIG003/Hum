@@ -9,6 +9,7 @@ import qrcode from 'qrcode-generator';
 import { ActionError, Meeting, newCode, PLATFORMS } from './meeting.js';
 import { AuthError, createAuth } from './auth.js';
 import { meetingCsv } from './export.js';
+import { createMailer, resetEmail, summaryEmail, verifyEmail } from './mail.js';
 import { MemoryStore, openPostgresStore, openSqliteStore } from './store.js';
 
 const ROOT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -67,12 +68,14 @@ const clientIp = (req) => {
   return req.socket.remoteAddress ?? 'unknown';
 };
 
-export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) => {
+export const createApp = ({ clock = Date.now, store = new MemoryStore(), mailer = createMailer() } = {}) => {
   const meetings = new Map();
   const auth = createAuth({ store, clock });
   const dirty = new Set();
   for (const data of store.loadMeetings()) {
     const restored = Meeting.restore(data, { clock });
+    // Meetings that ended before summaries were emailed are not emailed after a restart.
+    if (restored.status === 'ended' && !restored.summaryEmailedAt) restored.summaryEmailedAt = restored.endedAt ?? clock();
     meetings.set(restored.code, restored);
   }
 
@@ -280,6 +283,22 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     return `${isHttps(req) ? 'https' : 'http'}://${/^[a-z0-9.-]+(:\d+)?$/i.test(host) ? host : 'localhost'}`;
   };
 
+  const maskEmail = (address) => address.replace(/^(.).*(@.*)$/, '$1***$2');
+
+  const sendVerification = (user, req) => {
+    const token = auth.requestVerification(user);
+    mailer.send({ to: user.email, ...verifyEmail(`${publicBase(req)}/verify?token=${token}`) });
+  };
+
+  // The host's account email gets the coach summary. Only a confirmed address receives it.
+  let lastBase = process.env.ENGAGE_PUBLIC_URL?.replace(/\/$/, '') || 'http://localhost';
+  const emailSummary = async (meeting, owner, base) => {
+    meeting.summaryEmailedAt = clock();
+    dirty.add(meeting.code);
+    const mail = summaryEmail({ title: meeting.title, summary: meeting.summary(), link: `${base}/h/${meeting.code}` });
+    return mailer.send({ to: owner.email, ...mail });
+  };
+
   // The caller may manage a meeting if they hold the private host token or own it.
   const canManage = (req, meeting) => {
     if (meeting.checkHostToken(req.headers['x-host-token'])) return true;
@@ -410,6 +429,7 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
     const url = new URL(req.url, 'http://localhost');
     const { pathname } = url;
     try {
+      if (req.method === 'GET' && !pathname.startsWith('/api/') && req.headers.host) lastBase = publicBase(req);
       if (req.method === 'GET' && pathname === '/healthz') return json(res, 200, { ok: true });
       if (req.method === 'GET' && pathname === '/api/config') {
         return json(res, 200, {
@@ -455,7 +475,7 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
 
       if (pathname === '/api/auth/me' && req.method === 'GET') {
         const user = auth.userFromRequest(req);
-        return json(res, 200, { email: user?.email ?? null });
+        return json(res, 200, { email: user?.email ?? null, verified: Boolean(user?.verifiedAt), mail: mailer.enabled });
       }
       if (req.method === 'POST' && /^\/api\/auth\/(register|login|logout)$/.test(pathname)) {
         if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
@@ -468,10 +488,58 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         const result = action === 'register'
           ? auth.register(body.email, body.password, clientIp(req))
           : auth.login(body.email, body.password, clientIp(req));
+        if (action === 'register') sendVerification(result.user, req);
         return json(res, action === 'register' ? 201 : 200, { email: result.user.email }, {
           'Set-Cookie': auth.cookie(result.token, isHttps(req)),
         });
       }
+      if (req.method === 'POST' && pathname === '/api/auth/forgot') {
+        if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
+        const body = await readJson(req);
+        const found = auth.requestReset(body.email, clientIp(req));
+        if (found) {
+          const mail = resetEmail(`${publicBase(req)}/reset?token=${found.token}`);
+          mailer.send({ to: found.user.email, ...mail });
+        }
+        // The same answer whether or not the address has an account.
+        return json(res, 200, { ok: true });
+      }
+      if (req.method === 'POST' && pathname === '/api/auth/reset') {
+        if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
+        const body = await readJson(req);
+        const result = auth.resetPassword(body.token, body.password, clientIp(req));
+        return json(res, 200, { email: result.user.email }, { 'Set-Cookie': auth.cookie(result.token, isHttps(req)) });
+      }
+      if (req.method === 'POST' && pathname === '/api/auth/verify') {
+        if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
+        const body = await readJson(req);
+        const user = auth.verifyEmail(body.token, clientIp(req));
+        return json(res, 200, { email: user.email });
+      }
+      if (req.method === 'POST' && pathname === '/api/auth/verify/resend') {
+        if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-site request blocked.' });
+        const user = auth.userFromRequest(req);
+        if (!user) return json(res, 401, { error: 'Not signed in.' });
+        if (user.verifiedAt) return json(res, 200, { ok: true, already: true });
+        sendVerification(user, req);
+        return json(res, 200, { ok: true });
+      }
+
+      const summaryMatch = pathname.match(/^\/api\/meetings\/([A-Za-z0-9]{6})\/email-summary$/);
+      if (req.method === 'POST' && summaryMatch) {
+        const meeting = meetings.get(summaryMatch[1].toUpperCase());
+        if (!meeting || !canManage(req, meeting)) return json(res, 404, { error: 'Meeting not found.' });
+        if (meeting.status !== 'ended') return json(res, 409, { error: 'End the meeting first.' });
+        const owner = meeting.ownerId ? store.getUser(meeting.ownerId) : null;
+        if (!owner) return json(res, 200, { status: 'signin' });
+        if (!owner.verifiedAt) return json(res, 200, { status: 'verify' });
+        if (meeting.summaryEmailedAt && clock() - meeting.summaryEmailedAt < 10 * 60_000) {
+          return json(res, 429, { error: 'The summary was just sent. Check your inbox.' });
+        }
+        const result = await emailSummary(meeting, owner, publicBase(req));
+        return json(res, 200, { status: result.sent ? 'sent' : 'unavailable', to: maskEmail(owner.email) });
+      }
+
       if (req.method === 'GET' && pathname === '/api/my/meetings') {
         const user = auth.userFromRequest(req);
         if (!user) return json(res, 401, { error: 'Not signed in.' });
@@ -539,6 +607,9 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
       if (pathname === '/') return await servePage(req, res, 'index.html');
       if (pathname === '/login') return await servePage(req, res, 'login.html');
       if (pathname === '/try') return await servePage(req, res, 'try.html');
+      if (pathname === '/forgot') return await servePage(req, res, 'forgot.html');
+      if (pathname === '/reset') return await servePage(req, res, 'reset.html');
+      if (pathname === '/verify') return await servePage(req, res, 'verify.html');
       if (req.method === 'GET' && pathname === '/robots.txt') {
         const text = `User-agent: *\nAllow: /\nDisallow: /h/\nDisallow: /j/\nDisallow: /api/\nDisallow: /meet/\nSitemap: ${publicBase(req)}/sitemap.xml\n`;
         res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=3600', ...SECURITY_HEADERS });
@@ -594,6 +665,12 @@ export const createApp = ({ clock = Date.now, store = new MemoryStore() } = {}) 
         dirty.add(code);
       }
       if (meeting.status !== 'live') lastPresent.delete(code);
+      if (meeting.status === 'ended' && meeting.ownerId && !meeting.summaryEmailedAt && !demos.has(code)) {
+        const owner = store.getUser(meeting.ownerId);
+        meeting.summaryEmailedAt = now; // claimed first so it can only go out once
+        dirty.add(code);
+        if (owner?.verifiedAt) emailSummary(meeting, owner, lastBase).catch(() => {});
+      }
       const demoEnds = demos.get(code);
       if (demoEnds !== undefined) {
         if (meeting.status === 'live' && now >= demoEnds) {

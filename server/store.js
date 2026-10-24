@@ -8,6 +8,7 @@ export class MemoryStore {
     this.meetings = new Map();
     this.users = new Map();
     this.sessions = new Map();
+    this.tokens = new Map(); // hash -> { kind, userId, expiresAt }
   }
 
   saveMeeting(code, ownerId, data) {
@@ -50,6 +51,29 @@ export class MemoryStore {
 
   purgeSessions(now) {
     for (const [hash, s] of this.sessions) if (s.expiresAt <= now) this.sessions.delete(hash);
+    for (const [hash, t] of this.tokens) if (t.expiresAt <= now) this.tokens.delete(hash);
+  }
+
+  deleteSessionsFor(userId) {
+    for (const [hash, s] of this.sessions) if (s.userId === userId) this.sessions.delete(hash);
+  }
+
+  updateUser(id, changes) {
+    const user = this.users.get(id);
+    if (user) this.users.set(id, { ...user, ...changes });
+  }
+
+  // One-time tokens (password reset, email confirmation). Only a hash is stored.
+  putToken(hash, kind, userId, expiresAt) {
+    for (const [h, t] of this.tokens) if (t.kind === kind && t.userId === userId) this.tokens.delete(h);
+    this.tokens.set(hash, { kind, userId, expiresAt });
+  }
+
+  takeToken(hash, kind, now) {
+    const t = this.tokens.get(hash);
+    if (!t || t.kind !== kind) return null;
+    this.tokens.delete(hash);
+    return t.expiresAt > now ? t.userId : null;
   }
 
   close() {}
@@ -70,7 +94,13 @@ export const openSqliteStore = async (file) => {
     CREATE TABLE IF NOT EXISTS sessions (
       hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS tokens (
+      hash TEXT PRIMARY KEY, kind TEXT NOT NULL, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL
+    );
   `);
+  if (!db.prepare('PRAGMA table_info(users)').all().some((c) => c.name === 'verified_at')) {
+    db.exec('ALTER TABLE users ADD COLUMN verified_at INTEGER');
+  }
   const q = {
     save: db.prepare('INSERT INTO meetings (code, owner_id, data, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(code) DO UPDATE SET owner_id = excluded.owner_id, data = excluded.data, updated_at = excluded.updated_at'),
     all: db.prepare('SELECT data FROM meetings'),
@@ -82,8 +112,15 @@ export const openSqliteStore = async (file) => {
     session: db.prepare('SELECT user_id, expires_at FROM sessions WHERE hash = ?'),
     delSession: db.prepare('DELETE FROM sessions WHERE hash = ?'),
     purge: db.prepare('DELETE FROM sessions WHERE expires_at <= ?'),
+    purgeTokens: db.prepare('DELETE FROM tokens WHERE expires_at <= ?'),
+    delSessionsFor: db.prepare('DELETE FROM sessions WHERE user_id = ?'),
+    setUser: db.prepare('UPDATE users SET salt = ?, hash = ?, verified_at = ? WHERE id = ?'),
+    delTokensFor: db.prepare('DELETE FROM tokens WHERE kind = ? AND user_id = ?'),
+    addToken: db.prepare('INSERT OR REPLACE INTO tokens (hash, kind, user_id, expires_at) VALUES (?, ?, ?, ?)'),
+    token: db.prepare('SELECT * FROM tokens WHERE hash = ?'),
+    delToken: db.prepare('DELETE FROM tokens WHERE hash = ?'),
   };
-  const toUser = (row) => row && { id: row.id, email: row.email, salt: row.salt, hash: row.hash, createdAt: row.created_at };
+  const toUser = (row) => row && { id: row.id, email: row.email, salt: row.salt, hash: row.hash, createdAt: row.created_at, verifiedAt: row.verified_at ?? null };
 
   return {
     kind: 'sqlite',
@@ -106,7 +143,27 @@ export const openSqliteStore = async (file) => {
       return row && { userId: row.user_id, expiresAt: row.expires_at };
     },
     deleteSession: (hash) => q.delSession.run(hash),
-    purgeSessions: (now) => q.purge.run(now),
+    purgeSessions: (now) => {
+      q.purge.run(now);
+      q.purgeTokens.run(now);
+    },
+    deleteSessionsFor: (userId) => q.delSessionsFor.run(userId),
+    updateUser: (id, changes) => {
+      const user = toUser(q.userById.get(id));
+      if (!user) return;
+      const next = { ...user, ...changes };
+      q.setUser.run(next.salt, next.hash, next.verifiedAt ?? null, id);
+    },
+    putToken: (hash, kind, userId, expiresAt) => {
+      q.delTokensFor.run(kind, userId);
+      q.addToken.run(hash, kind, userId, expiresAt);
+    },
+    takeToken: (hash, kind, now) => {
+      const row = q.token.get(hash);
+      if (!row || row.kind !== kind) return null;
+      q.delToken.run(hash);
+      return row.expires_at > now ? row.user_id : null;
+    },
     close: () => db.close(),
   };
 };
@@ -128,6 +185,10 @@ export const openPostgresStore = async (connectionString) => {
     CREATE TABLE IF NOT EXISTS engage_sessions (
       hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires_at BIGINT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS engage_tokens (
+      hash TEXT PRIMARY KEY, kind TEXT NOT NULL, user_id TEXT NOT NULL, expires_at BIGINT NOT NULL
+    );
+    ALTER TABLE engage_users ADD COLUMN IF NOT EXISTS verified_at BIGINT;
   `);
 
   const cache = new MemoryStore();
@@ -135,10 +196,14 @@ export const openPostgresStore = async (connectionString) => {
     cache.meetings.set(row.data.code, { ownerId: row.data.ownerId ?? null, data: JSON.stringify(row.data) });
   }
   for (const u of (await pool.query('SELECT * FROM engage_users')).rows) {
-    cache.users.set(u.id, { id: u.id, email: u.email, salt: u.salt, hash: u.hash, createdAt: Number(u.created_at) });
+    cache.users.set(u.id, { id: u.id, email: u.email, salt: u.salt, hash: u.hash, createdAt: Number(u.created_at), verifiedAt: u.verified_at === null || u.verified_at === undefined ? null : Number(u.verified_at) });
   }
   for (const s of (await pool.query('SELECT * FROM engage_sessions')).rows) {
     cache.sessions.set(s.hash, { userId: s.user_id, expiresAt: Number(s.expires_at) });
+  }
+
+  for (const t of (await pool.query('SELECT * FROM engage_tokens')).rows) {
+    cache.tokens.set(t.hash, { kind: t.kind, userId: t.user_id, expiresAt: Number(t.expires_at) });
   }
 
   let queue = Promise.resolve();
@@ -179,6 +244,26 @@ export const openPostgresStore = async (connectionString) => {
     purgeSessions: (now) => {
       cache.purgeSessions(now);
       write('DELETE FROM engage_sessions WHERE expires_at <= $1', [now]);
+      write('DELETE FROM engage_tokens WHERE expires_at <= $1', [now]);
+    },
+    deleteSessionsFor: (userId) => {
+      cache.deleteSessionsFor(userId);
+      write('DELETE FROM engage_sessions WHERE user_id = $1', [userId]);
+    },
+    updateUser: (id, changes) => {
+      cache.updateUser(id, changes);
+      const user = cache.getUser(id);
+      if (user) write('UPDATE engage_users SET salt = $1, hash = $2, verified_at = $3 WHERE id = $4', [user.salt, user.hash, user.verifiedAt ?? null, id]);
+    },
+    putToken: (hash, kind, userId, expiresAt) => {
+      cache.putToken(hash, kind, userId, expiresAt);
+      write('DELETE FROM engage_tokens WHERE kind = $1 AND user_id = $2', [kind, userId]);
+      write('INSERT INTO engage_tokens (hash, kind, user_id, expires_at) VALUES ($1, $2, $3, $4)', [hash, kind, userId, expiresAt]);
+    },
+    takeToken: (hash, kind, now) => {
+      const userId = cache.takeToken(hash, kind, now);
+      write('DELETE FROM engage_tokens WHERE hash = $1', [hash]);
+      return userId;
     },
     close: async () => {
       await queue;
