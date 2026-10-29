@@ -214,3 +214,5 @@ body.lp { background: var(--bg); overflow-x: hidden; }
 .p-part { left: 10%; top: 200px; height: 290px; object-fit: cover; object-position: top; }
 .p-host { height: 470px; object-fit: cover; object-position: top; }
 @media (max-width: 640px) { .p-part { height: 230px; left: 2%; } .p-host { height: 360px; } }
+.lp-nav .brand-mark { width: 30px; height: 30px; }
+.lp-nav .brand { gap: 10px; }

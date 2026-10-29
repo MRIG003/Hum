@@ -39,27 +39,29 @@ export const createMailer = ({
   };
 };
 
-const shell = (title, bodyHtml) => `<!doctype html><html><body style="margin:0;background:#f6f5f0;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#1c1c1a">
+const originOf = (link) => { try { return new URL(link).origin; } catch { return ''; } };
+
+const shell = (title, bodyHtml, link = '') => `<!doctype html><html><body style="margin:0;background:#f5f6fb;font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#13142b">
 <div style="max-width:560px;margin:0 auto;padding:28px 20px">
-<div style="font-weight:700;font-size:18px;margin-bottom:18px"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:#2563c9;margin-right:8px;vertical-align:-1px"></span>Engage</div>
+<div style="font-weight:700;font-size:18px;margin-bottom:18px">${originOf(link) ? `<img src="${escapeHtml(originOf(link))}/img/logo.png" width="26" height="26" alt="" style="vertical-align:-7px;margin-right:8px">` : ''}Engage</div>
 <div style="background:#fff;border:1px solid #d6d6d0;border-radius:12px;padding:22px">
 <h1 style="font-size:20px;margin:0 0 12px">${escapeHtml(title)}</h1>${bodyHtml}</div>
 <p style="font-size:12px;color:#6b6a63;margin-top:14px">You got this email because of an action on Engage. If that was not you, you can ignore it.</p>
 </div></body></html>`;
 
 const button = (href, label) =>
-  `<p style="margin:18px 0"><a href="${escapeHtml(href)}" style="background:#2563c9;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(label)}</a></p><p style="font-size:12px;color:#6b6a63;word-break:break-all">Or paste this link into your browser:<br>${escapeHtml(href)}</p>`;
+  `<p style="margin:18px 0"><a href="${escapeHtml(href)}" style="background:#4f46e5;color:#fff;text-decoration:none;padding:11px 18px;border-radius:8px;font-weight:600;display:inline-block">${escapeHtml(label)}</a></p><p style="font-size:12px;color:#6b6a63;word-break:break-all">Or paste this link into your browser:<br>${escapeHtml(href)}</p>`;
 
 export const resetEmail = (link) => ({
   subject: 'Reset your Engage password',
   text: `Reset your Engage password with this link. It works once and expires in 30 minutes:\n\n${link}\n\nIf you did not ask for this, ignore this email. Your password stays as it is.`,
-  html: shell('Reset your password', `<p>Use the button to choose a new password. The link works once and expires in 30 minutes.</p>${button(link, 'Choose a new password')}<p style="font-size:13px">If you did not ask for this, ignore this email. Your password stays as it is.</p>`),
+  html: shell('Reset your password', `<p>Use the button to choose a new password. The link works once and expires in 30 minutes.</p>${button(link, 'Choose a new password')}<p style="font-size:13px">If you did not ask for this, ignore this email. Your password stays as it is.</p>`, link),
 });
 
 export const verifyEmail = (link) => ({
   subject: 'Confirm your email for Engage',
   text: `Confirm your email address for Engage with this link. It expires in 24 hours:\n\n${link}`,
-  html: shell('Confirm your email', `<p>Confirm this address so Engage can email you meeting summaries and password resets.</p>${button(link, 'Confirm my email')}`),
+  html: shell('Confirm your email', `<p>Confirm this address so Engage can email you meeting summaries and password resets.</p>${button(link, 'Confirm my email')}`, link),
 });
 
 const minutes = (ms) => `${Math.max(0, Math.round(ms / 60_000))} min`;
@@ -93,6 +95,6 @@ export const summaryEmail = ({ title, summary: s, link }) => {
     ${insights.length ? li(insights.map((i) => `<b>${escapeHtml(i.title)}</b> ${escapeHtml(i.detail)}`)) : '<p>Nothing needs attention. Engagement held up well.</p>'}
     <p><b>Try this next time:</b> ${escapeHtml(s.coach?.next ?? '')}</p>
     ${s.topQuestions?.length ? `<h2 style="font-size:16px;margin:18px 0 6px">Top questions</h2>${li(s.topQuestions.map((q) => `${escapeHtml(q.text)} <span style="color:#6b6a63">(${q.votes} votes${q.answered ? ', answered' : ''})</span>`))}` : ''}
-    ${button(link, 'Open the full summary')}`);
+    ${button(link, 'Open the full summary')}`, link);
   return { subject: `Engage summary: ${title}`.replace(/[\r\n]+/g, ' ').slice(0, 120), text: textParts.join('\n'), html };
 };

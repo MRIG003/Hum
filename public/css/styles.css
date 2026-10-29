@@ -563,3 +563,11 @@ body.prompting .moment-card { border-color: transparent; box-shadow: 0 0 0 2px v
 .opt-row .opt-input:focus { box-shadow: none; border-bottom: 2px solid var(--accent); }
 details.fold > summary h2::after { content: none; }
 .toast { border-radius: 12px; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.45); }
+
+/* brand mark: the Engage logo */
+.brand-mark { background: url("/img/logo.png") center / contain no-repeat; border-radius: 0; box-shadow: none; }
+.brand-mark::after { content: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-mark { background-color: #fff; border-radius: 50%; box-shadow: 0 0 0 2px #fff; }
+}
+:root[data-theme="dark"] .brand-mark { background-color: #fff; border-radius: 50%; box-shadow: 0 0 0 2px #fff; }
