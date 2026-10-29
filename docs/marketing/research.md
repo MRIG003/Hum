@@ -75,3 +75,11 @@ See §3. Total 24 / 85.
 
 ## Materials read
 - `README.md`, `docs/STATUS.md`, `docs/product-plan.md`, `docs/PRD.md` (scanned), `docs/START-HERE.md`, `integrations/google-meet/listing/LISTING.md`, `public/index.html`, git log to 26 Oct 2026. Copies in `materials/`.
+
+## Update, 29 October 2026 (v2)
+Read from branch `claude/practical-lovelace-u4w13f` (commits fa1702a to 52035b9):
+- New logo: navy circular "e" with white swirl, violet dot and violet underline wave. Palette indigo #4F46E5 to violet #8B3DFF, navy #13142B, lavender #F5F6FB.
+- New homepage: "Every voice in the meeting, not just the loudest few." 3D hero, playable participant demo, real screenshots, benefits, comparison, FAQ (only the host sees who's quiet; scores private).
+- Ask the room with ready-made questions and form-style options; reactions only while the floor is open; five one-minute quick games (colour tap, even or odd, quick maths, biggest or smallest, odd one out) replace bingo and prediction.
+- Address: engage.neuronlab.in; render.yaml on the Starter (always-on) plan; Resend mail from neuronlab.in. Developer contact still engage2028@gmail.com.
+- Marketplace package rewritten for the new address and design, with reviewer test steps. Participants without the add-on are invited to install it when the host starts Engage in Meet.

@@ -2,8 +2,8 @@
 
 phase: review
 current_section: 2
-plan_version: v1
-last_updated: 2026-10-27
+plan_version: v2
+last_updated: 2026-10-29
 
 ## Sections completed
 All 13 sections drafted in one pass and compiled to final_plan.md. None approved by the founder yet.
@@ -28,3 +28,4 @@ All 13 sections drafted in one pass and compiled to final_plan.md. None approved
 - Intake answers: bootstrapped ~$0/mo, solo founder, no real users, all four audiences selected (plan recommends trainers/facilitators as beachhead).
 - Biggest open decisions: CAC counted in founder hours; named quiet list vs room-first positioning; ~$10-15/mo spend approval.
 - Repo copy: docs/marketing/ in mrig003/hum.
+- v2 (2026-10-29): updated for the redesign (logo, palette, homepage "Every voice in the meeting"), Ask the room with ready-made questions, five quick games, engage.neuronlab.in on Render Starter, new Marketplace package. Rubric 24 -> 31/85. Added demo video move (docs/marketing/demo-video-flow.md).
