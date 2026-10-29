@@ -59,3 +59,9 @@ Meet keeps an add-on alive only while the page it loaded in the side panel holds
 ## Meetings nobody ended
 
 The server ends a live meeting by itself after 60 minutes with no host or attendee connected (`ENGAGE_IDLE_END_MIN` changes the window; the 12 hour cap still applies). While the host has Engage open for an hour or more, the panel shows a "Meeting still running" reminder with End meeting and Keep it running (snoozes for an hour).
+
+## Ask the room, the floor and quick games (October 2026)
+
+- **Ask the room** offers ready-made questions per type (editable), plus questions the host wrote before on this device. Options are edited like Google Forms: one row each, Enter adds the next, a pasted list fills several rows, and a recall check's right answer is marked with the circle. The agenda and the automatic pulse check live in this tool too.
+- **Reactions** are open only while the host has opened the floor (30 seconds to 5 minutes, or until closed). Each person can send each emoji once per opening. The host sees this opening's counts, or the last one's.
+- **Games** replace bingo and the prediction. Colour tap, Even or odd, Quick maths, Biggest or smallest, Odd one out, or a surprise mix: 3, 5 or 10 rounds of 5 to 15 seconds. The game fills every participant's panel; right and fast answers score more. Scores stay private: each person sees their own, and the host sees how many got each round right, never who.

@@ -1,5 +1,6 @@
 import { $, $$, codeFromPath, connect, esc, formatClock, REACTION_LABELS, storage, toast } from './common.js';
 import { renderChart } from './chart.js';
+import { LIBRARY, recentPrompts, rememberPrompt } from './library.js';
 
 const code = codeFromPath();
 const PROMPT_TYPES = { poll: 'poll', pulse: 'pulse check', recall: 'recall check', quiz: 'quiz', wordcloud: 'word cloud' };
@@ -48,7 +49,7 @@ const confirmAction = (message, okLabel = 'Confirm') => new Promise((resolve) =>
 
 let state = null;
 let momentKind = 'poll';
-let dirty = { bingo: false, prediction: false, agenda: false };
+let dirty = { agenda: false };
 let overrideArmed = false;
 
 const live = $('#live');
@@ -94,7 +95,7 @@ const socket = connect({
 // looking at the panel get Meet's own prompt to open Engage. Set once the Meet SDK session is ready.
 let meetClient = null;
 let lastNotifiedAt = 0;
-const NOTIFY_ON_ACTIONS = new Set(['launchMoment', 'launchPrepared', 'floor']);
+const NOTIFY_ON_ACTIONS = new Set(['launchMoment', 'launchPrepared', 'floor', 'startGame']);
 const notifyKey = `engage.notify.${code}`;
 const notifyPrefs = () => {
   try { return JSON.parse(sessionStorage.getItem(notifyKey)) ?? { on: true, gap: 120 }; } catch { return { on: true, gap: 120 }; }
@@ -207,7 +208,7 @@ function renderBanners() {
       if (action === 'recall') return '<button data-quick="recall" class="primary">Run a recall check</button>';
       if (action === 'pulse') return '<button data-quick="pulse">Run a pulse check</button>';
       if (action === 'floor') return '<button data-action="floor">Open the floor</button>';
-      if (action === 'break') return '<button data-quick="break">Start a break block</button>';
+      if (action === 'break') return '<button data-quick="break">Play a quick game</button>';
       return '';
     }).join('');
     parts.push(`<div class="banner warn suggestion"><div><b>Suggestion.</b> ${esc(suggestion.text)}</div><div class="row">${buttons}</div></div>`);
@@ -337,34 +338,54 @@ function renderQuestions() {
 }
 
 function renderReactions() {
+  const floor = state.floor ?? { open: false };
+  const counts = floor.open ? floor.counts : floor.last?.counts;
+  const chip = $('#floor-state');
+  chip.innerHTML = floor.open ? `Floor open · <span class="num" data-closes="${floor.closesAt}"></span>` : 'Floor closed';
+  chip.className = `chip ${floor.open ? 'ok' : ''}`;
+  $('#floor-open').hidden = floor.open;
+  $('#floor-length').hidden = floor.open;
+  $('label[for="floor-length"]').hidden = floor.open;
+  $('#floor-close').hidden = !floor.open;
+  $('#floor-counts-label').textContent = floor.open ? 'This opening of the floor' : floor.last ? 'The last time the floor was open' : '';
   $('#reactions').innerHTML = Object.entries(REACTION_LABELS).map(([kind, { emoji, label }]) =>
-    `<div class="reaction-tile"><b class="num">${state.reactions[kind] ?? 0}</b>${emoji} ${esc(label)}</div>`).join('');
+    `<div class="reaction-tile"><b class="num">${counts?.[kind] ?? 0}</b>${emoji} ${esc(label)}</div>`).join('');
 }
 
+// ---- games ---------------------------------------------------------------------
+let gameKind = 'mixed';
+
 function renderGames() {
-  $('#games-state').textContent = state.focus ? 'Paused by Focus' : state.gamesOpen ? 'Open' : 'Closed';
-  $('#games-state').className = `chip ${state.gamesOpen && !state.focus ? 'ok' : ''}`;
-  const toggle = $('#games-toggle');
-  toggle.textContent = state.gamesOpen ? 'Close games' : 'Open games now';
-  toggle.dataset.on = state.gamesOpen ? '' : '1';
-
-  $('#windows').innerHTML = state.gameWindows.length
-    ? state.gameWindows.map((w) => `<div class="row spread"><span>${esc(w.label)} <span class="muted small num">at ${w.startMin} min for ${w.durationMin} min</span></span><button data-remove-w="${esc(w.id)}" class="ghost small" aria-label="Remove window">✕</button></div>`).join('')
-    : '<p class="small muted">No windows yet. Add one, for example a break block.</p>';
-
-  const prediction = state.prediction;
-  if (!dirty.prediction && document.activeElement !== $('#p-question')) $('#p-question').value = prediction.question;
-  $('#p-counts').textContent = `Yes ${prediction.yes} · No ${prediction.no}`;
-  $('#p-actions').innerHTML = prediction.status === 'resolved'
-    ? `<span class="chip ok">Resolved: ${prediction.result === 'yes' ? 'Yes' : 'No'}</span>`
-    : '<button data-resolve="yes" class="small">Resolve Yes</button><button data-resolve="no" class="small">Resolve No</button>';
-
-  if (!dirty.bingo && document.activeElement !== $('#b-words')) $('#b-words').value = state.bingoWords.join('\n');
+  const g = state.game;
+  const running = g && g.status !== 'done';
+  $('#game-setup').hidden = Boolean(running);
+  for (const b of $$('#game-picks [data-game-kind]')) b.setAttribute('aria-checked', String(b.dataset.gameKind === gameKind));
+  $('#game-start').disabled = Boolean(state.focus || state.moment?.status === 'open');
+  $('#game-start').title = state.focus ? 'Focus moment is on' : state.moment?.status === 'open' ? 'Close the current prompt first' : '';
+  const live = $('#game-live');
+  if (!g) {
+    live.hidden = true;
+    live.innerHTML = '';
+    return;
+  }
+  live.hidden = false;
+  if (g.status === 'done') {
+    live.innerHTML = `<div class="banner"><span><b>${esc(g.label)} finished.</b> ${g.players} ${g.players === 1 ? 'person' : 'people'} played${g.accuracy === null ? '' : `, ${g.accuracy}% of answers were right`}.</span><button class="small" data-action="stopGame">Close</button></div>`;
+    return;
+  }
+  const options = g.question.options.map((o, i) => `<span class="game-opt ${i === g.question.correct ? 'right' : ''}" ${o.color ? `style="--swatch:${esc(o.color)}"` : ''}>${o.color ? '<i class="swatch"></i>' : ''}${esc(o.label)}</span>`).join('');
+  live.innerHTML = `
+    <div class="row spread"><b>${esc(g.label)}</b><span class="chip">Round ${g.roundNo} of ${g.rounds}</span></div>
+    <p class="game-prompt">${esc(g.question.prompt)}</p>
+    <div class="game-opts">${options}</div>
+    <p class="small muted">${g.status === 'reveal' ? 'Showing the answer. Next round in a moment.' : `<span class="num" data-closes="${g.roundEndsAt}"></span> left`} · ${g.answered} answered · ${g.rightThisRound} right · ${g.players} playing</p>
+    <div class="row"><button class="small" data-action="stopGame">Stop the game</button></div>`;
 }
 
 function renderAgenda() {
   if (!dirty.agenda && document.activeElement !== $('#ag-text')) $('#ag-text').value = state.agenda.text;
   const segs = state.agenda.segments;
+  $('#ag-summary').textContent = segs.length ? `${segs.length} ${segs.length === 1 ? 'topic' : 'topics'}` : 'optional';
   $('#ag-list').innerHTML = segs.length
     ? segs.map((s) => `<div class="stack" style="gap: 4px"><div class="row spread"><span><b>${esc(s.title)}</b> <span class="muted num">${s.startMin} to ${s.endMin} min</span></span><span class="num muted">${s.avg === null ? 'no data yet' : `${s.avg}% avg`}</span></div>${
       (s.prompts ?? []).map((p) => `<div class="row spread prepared ${p.used ? 'used' : ''}"><span class="small">${p.used ? '✓ ' : ''}<span class="chip">${esc(PROMPT_TYPES[p.type] ?? p.type)}</span> ${esc(p.prompt)}</span><span class="row"><button class="small" data-launch-prepared="${esc(p.id)}" data-type="${esc(p.type)}">${p.used ? 'Launch again' : 'Launch'}</button><button class="ghost small" data-remove-prompt="${esc(p.id)}" aria-label="Remove prepared prompt">✕</button></span></div>`).join('')}</div>`).join('')
@@ -380,6 +401,8 @@ function renderAgenda() {
 function renderQuiet() {
   if (document.activeElement !== $('#quiet-on')) $('#quiet-on').checked = state.quiet.on;
   if (document.activeElement !== $('#quiet-every')) $('#quiet-every').value = String(state.quiet.everyMin);
+  $('#auto-state').textContent = state.quiet.on ? `Every ${state.quiet.everyMin} min` : 'Off';
+  $('#auto-state').className = `chip ${state.quiet.on ? 'ok' : ''}`;
 }
 
 
@@ -444,7 +467,7 @@ function showPerson(d) {
     <h3 style="margin-top: 14px">Reactions</h3><div class="reaction-grid">${reactions}</div>
     <h3 style="margin-top: 14px">Prompts (${d.answeredPrompts} of ${d.prompts.length} answered)</h3>${prompts}
     <h3 style="margin-top: 14px">Questions</h3>${questions}
-    <p class="small muted" style="margin-top: 12px">Engage only sees actions inside Engage. Points, bingo cards, predictions and notes stay private to each person.</p>`;
+    <p class="small muted" style="margin-top: 12px">Engage only sees actions inside Engage. Points, game scores and notes stay private to each person.</p>`;
   if (!$('#person-dialog').open) $('#person-dialog').showModal();
 }
 
@@ -533,7 +556,7 @@ function renderSummary() {
         ${agendaCard}
         <section class="card"><h2>Top questions</h2><div class="q-list">${questions}</div><p class="small muted" style="margin-top: 8px">${s.unanswered} still open</p></section>
         <section class="card"><h2>Reactions</h2><div class="reaction-grid">${reactions}</div></section>
-        <section class="card"><h2>Prediction</h2><p>${esc(s.prediction.question)}</p><p class="muted small">Yes ${s.prediction.yes} · No ${s.prediction.no}${s.prediction.result ? ` · Result: ${s.prediction.result === 'yes' ? 'Yes' : 'No'}` : ''}</p></section>
+        ${s.games?.length ? `<section class="card"><h2>Games played</h2>${s.games.map((g) => `<p class="small">${esc(g.label)}: ${g.rounds} rounds, ${g.players} played${g.accuracy === null ? '' : `, ${g.accuracy}% right`}</p>`).join('')}</section>` : ''}
       </div>
     </div>`;
   fetch('/api/config').then((r) => r.json()).then((c) => {
@@ -606,8 +629,11 @@ document.addEventListener('click', async (event) => {
   if (el.dataset.remindLater) { remindAfter = Date.now() + HOUR_MS; renderBanners(); }
   else if (el.dataset.view) showFeature(el.dataset.view);
   else if (action === 'focus') act({ t: 'focus', on: el.dataset.on === '1' });
-  else if (action === 'games') act({ t: 'games', on: el.dataset.on === '1' });
-  else if (action === 'floor') act({ t: 'floor' });
+  else if (action === 'floor') act({ t: 'floor', durationSec: Number($('#floor-length').value) || 60 });
+  else if (action === 'closeFloor') act({ t: 'closeFloor' });
+  else if (action === 'stopGame') act({ t: 'stopGame' });
+  else if (el.dataset.gameKind) { gameKind = el.dataset.gameKind; renderGames(); }
+  else if (el.id === 'game-start') act({ t: 'startGame', kind: gameKind, rounds: Number($('#game-rounds').value), roundSec: Number($('#game-seconds').value) });
   else if (action === 'closeMoment') act({ t: 'closeMoment' });
   else if (action === 'dismissMoment') act({ t: 'dismissMoment' });
   else if (action === 'end') {
@@ -619,9 +645,7 @@ document.addEventListener('click', async (event) => {
   } else if (quick === 'pulse') {
     act({ t: 'launchMoment', type: 'pulse', prompt: 'How is this meeting going for you?', durationSec: 45 });
   } else if (quick === 'break') {
-    const elapsed = Math.ceil((socket.now() - state.startedAt) / 60_000);
-    act({ t: 'addWindow', startMin: elapsed, durationMin: 5, label: 'Break block' });
-    act({ t: 'games', on: true });
+    act({ t: 'startGame', kind: 'mixed', rounds: 5, roundSec: 10 });
   } else if (el.dataset.answered) act({ t: 'answered', id: el.dataset.answered, answered: el.dataset.value === '1' });
   else if (el.dataset.pin) act({ t: 'pin', id: el.dataset.pin, on: el.dataset.value === '1' });
   else if (el.dataset.mergeFrom) { mergeFrom = el.dataset.mergeFrom; renderQuestions(); }
@@ -634,17 +658,123 @@ document.addEventListener('click', async (event) => {
   } else if (el.dataset.removePrompt) act({ t: 'removePrompt', id: el.dataset.removePrompt });
   else if (el.dataset.hideNudge) { hiddenNudges.add(el.dataset.hideNudge); renderBanners(); }
   else if (el.dataset.removeQ) act({ t: 'removeQuestion', id: el.dataset.removeQ });
-  else if (el.dataset.removeW) act({ t: 'removeWindow', id: el.dataset.removeW });
-  else if (el.dataset.resolve) act({ t: 'resolvePrediction', result: el.dataset.resolve });
 });
 
-// moment form
-const optionLines = () => $('#f-options').value.split('\n').map((l) => l.trim()).filter(Boolean).slice(0, 6);
+// ---- moment form: ready-made questions and Google Forms style options ------------------
+const MAX_OPTIONS = 6;
+const needsOptions = () => momentKind === 'poll' || momentKind === 'recall';
+const optionRows = () => $$('#f-option-list .opt-row');
+
+function addOptionRow(value = '', { focus = false, after = null } = {}) {
+  if (optionRows().length >= MAX_OPTIONS) return null;
+  const row = document.createElement('div');
+  row.className = 'opt-row';
+  row.innerHTML = `<input type="radio" name="f-correct" class="opt-correct" aria-label="This is the right answer"><span class="opt-dot" aria-hidden="true"></span><input type="text" class="opt-input" maxlength="80"><button type="button" class="opt-remove ghost" aria-label="Remove option">✕</button>`;
+  row.querySelector('.opt-input').value = value;
+  if (after) after.after(row);
+  else $('#f-option-list').append(row);
+  renumberOptions();
+  if (focus) row.querySelector('.opt-input').focus();
+  return row;
+}
+
+function renumberOptions() {
+  const rows = optionRows();
+  rows.forEach((row, i) => { row.querySelector('.opt-input').placeholder = `Option ${i + 1}`; });
+  for (const btn of $$('#f-option-list .opt-remove')) btn.disabled = rows.length <= 2;
+  $('#f-add-option').disabled = rows.length >= MAX_OPTIONS;
+}
+
+function setOptions(values = ['', '']) {
+  $('#f-option-list').innerHTML = '';
+  const list = values.length >= 2 ? values : [...values, '', ''].slice(0, 2);
+  for (const v of list.slice(0, MAX_OPTIONS)) addOptionRow(v);
+}
+
+// Filled options, and which of them is marked right (for a recall check).
+function readOptions() {
+  const options = [];
+  let correct = null;
+  for (const row of optionRows()) {
+    const text = row.querySelector('.opt-input').value.trim();
+    if (!text) continue;
+    if (row.querySelector('.opt-correct').checked) correct = options.length;
+    options.push(text);
+  }
+  return { options, correct };
+}
+
+$('#f-option-list').addEventListener('keydown', (event) => {
+  const input = event.target.closest('.opt-input');
+  if (!input) return;
+  const row = input.closest('.opt-row');
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    const next = row.nextElementSibling;
+    if (next) next.querySelector('.opt-input').focus();
+    else addOptionRow('', { focus: true, after: row });
+  } else if (event.key === 'Backspace' && !input.value && optionRows().length > 2) {
+    event.preventDefault();
+    const prev = row.previousElementSibling ?? row.nextElementSibling;
+    row.remove();
+    renumberOptions();
+    prev?.querySelector('.opt-input').focus();
+  }
+});
+// Pasting a list (one per line) fills several options at once.
+$('#f-option-list').addEventListener('paste', (event) => {
+  const input = event.target.closest('.opt-input');
+  const text = event.clipboardData?.getData('text') ?? '';
+  if (!input || !text.includes('\n')) return;
+  event.preventDefault();
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  let row = input.closest('.opt-row');
+  input.value = lines.shift() ?? '';
+  for (const line of lines) {
+    const next = row.nextElementSibling?.querySelector('.opt-input').value === '' ? row.nextElementSibling : addOptionRow('', { after: row });
+    if (!next) break;
+    next.querySelector('.opt-input').value = line;
+    row = next;
+  }
+});
+$('#f-option-list').addEventListener('click', (event) => {
+  const remove = event.target.closest('.opt-remove');
+  if (!remove || optionRows().length <= 2) return;
+  remove.closest('.opt-row').remove();
+  renumberOptions();
+});
+$('#f-add-option').addEventListener('click', () => {
+  const rows = optionRows();
+  addOptionRow('', { focus: true, after: rows.at(-1) ?? null });
+});
+
+function fillLibrary() {
+  const ready = LIBRARY[momentKind] ?? [];
+  const mine = recentPrompts(momentKind);
+  const opt = (group, list) => list.length ? `<optgroup label="${group}">${list.map((p) => `<option value="${esc(group)}|${esc(p.prompt)}">${esc(p.prompt)}</option>`).join('')}</optgroup>` : '';
+  $('#f-library').innerHTML = '<option value="">Write my own question</option>' + opt('Ready-made', ready) + opt('Used before on this device', mine);
+}
+
+$('#f-library').addEventListener('change', () => {
+  const value = $('#f-library').value;
+  if (!value) {
+    $('#f-prompt').value = '';
+    setOptions();
+    $('#f-prompt').focus();
+    return;
+  }
+  const prompt = value.slice(value.indexOf('|') + 1);
+  const entry = [...(LIBRARY[momentKind] ?? []), ...recentPrompts(momentKind)].find((p) => p.prompt === prompt);
+  $('#f-prompt').value = prompt;
+  if (needsOptions()) setOptions(entry?.options?.length ? entry.options : ['', '', '']);
+  const firstBlank = optionRows().find((row) => !row.querySelector('.opt-input').value);
+  (needsOptions() && firstBlank ? firstBlank.querySelector('.opt-input') : $('#f-prompt')).focus();
+});
 
 function syncMomentForm() {
-  const needsOptions = momentKind === 'poll' || momentKind === 'recall';
-  $('#f-options-wrap').hidden = !needsOptions;
-  $('#f-correct-wrap').hidden = momentKind !== 'recall';
+  $('#f-options-wrap').hidden = !needsOptions();
+  $('#f-option-list').classList.toggle('recall', momentKind === 'recall');
+  $('#f-options-label').textContent = momentKind === 'recall' ? 'Options: select the circle next to the right answer' : 'Options';
   const note = $('#f-recall-note');
   note.hidden = momentKind !== 'recall';
   if (momentKind === 'recall' && state) {
@@ -658,13 +788,15 @@ function syncMomentForm() {
     wordcloud: 'One word for how you feel about the plan',
   };
   $('#f-prompt').placeholder = placeholders[momentKind];
-  if (momentKind === 'recall') {
-    const options = optionLines();
-    const current = $('#f-correct').value;
-    $('#f-correct').innerHTML = options.map((o, i) => `<option value="${i}">${esc(o)}</option>`).join('');
-    if (current && Number(current) < options.length) $('#f-correct').value = current;
-  }
 }
+
+const resetMomentForm = () => {
+  $('#f-prompt').value = '';
+  $('#f-library').value = '';
+  setOptions();
+  fillLibrary();
+  syncMomentForm();
+};
 
 $('#moment-tabs').addEventListener('click', (event) => {
   const tab = event.target.closest('[data-kind]');
@@ -674,9 +806,9 @@ $('#moment-tabs').addEventListener('click', (event) => {
   $('#f-submit').textContent = $('#f-topic').value ? 'Save for later' : 'Launch';
   $('#f-duration').value = momentKind === 'recall' ? '20' : '60';
   for (const t of $$('#moment-tabs button')) t.setAttribute('aria-selected', String(t === tab));
-  syncMomentForm();
+  $('#f-error').hidden = true;
+  resetMomentForm();
 });
-$('#f-options').addEventListener('input', syncMomentForm);
 $('#f-topic').addEventListener('change', () => {
   $('#f-submit').textContent = $('#f-topic').value ? 'Save for later' : 'Launch';
 });
@@ -684,53 +816,33 @@ $('#f-topic').addEventListener('change', () => {
 $('#moment-form').addEventListener('submit', (event) => {
   event.preventDefault();
   const error = $('#f-error');
+  const showError = (text) => { error.textContent = text; error.hidden = false; };
   const prompt = $('#f-prompt').value.trim() || $('#f-prompt').placeholder;
-  const options = optionLines();
-  if ((momentKind === 'poll' || momentKind === 'recall') && options.length < 2) {
-    error.textContent = 'Add at least two options, one per line.';
-    error.hidden = false;
-    return;
-  }
+  const { options, correct } = needsOptions() ? readOptions() : { options: [], correct: null };
+  if (needsOptions() && options.length < 2) return showError('Fill in at least two options.');
+  if (momentKind === 'recall' && correct === null) return showError('Select the circle next to the right answer.');
   error.hidden = true;
+  const spec = { type: momentKind, prompt, options, correct: momentKind === 'recall' ? correct : null, durationSec: Number($('#f-duration').value) };
   const topic = $('#f-topic').value;
   if (topic) {
-    act({
-      t: 'addPrompt',
-      topic,
-      type: momentKind,
-      prompt,
-      options,
-      correct: momentKind === 'recall' ? Number($('#f-correct').value) : null,
-      durationSec: Number($('#f-duration').value),
-    });
+    act({ t: 'addPrompt', topic, ...spec });
+    rememberPrompt({ type: momentKind, prompt, options: momentKind === 'poll' ? options : [] });
     toast(`Saved for ${topic}. You will get a gentle reminder near the end of the topic.`);
-    $('#f-prompt').value = '';
-    $('#f-options').value = '';
-    syncMomentForm();
+    resetMomentForm();
     return;
   }
   const capped = momentKind === 'recall' && state.recallNextAt > socket.now();
   if (capped && !overrideArmed) {
     overrideArmed = true;
-    error.textContent = `The next recall check is available in ${formatClock(state.recallNextAt - socket.now())}. Press Launch again to run it now.`;
-    error.hidden = false;
-    $('#moment-form button[type="submit"]').textContent = 'Launch anyway';
+    showError(`The next recall check is available in ${formatClock(state.recallNextAt - socket.now())}. Press Launch again to run it now.`);
+    $('#f-submit').textContent = 'Launch anyway';
     return;
   }
-  $('#moment-form button[type="submit"]').textContent = 'Launch';
-  act({
-    t: 'launchMoment',
-    override: overrideArmed,
-    type: momentKind,
-    prompt,
-    options,
-    correct: momentKind === 'recall' ? Number($('#f-correct').value) : null,
-    durationSec: Number($('#f-duration').value),
-  });
+  $('#f-submit').textContent = 'Launch';
+  act({ t: 'launchMoment', override: overrideArmed, ...spec });
+  rememberPrompt({ type: momentKind, prompt, options: momentKind === 'poll' ? options : [] });
   overrideArmed = false;
-  $('#f-prompt').value = '';
-  $('#f-options').value = '';
-  syncMomentForm();
+  resetMomentForm();
 });
 
 $('#agenda-form').addEventListener('submit', (event) => {
@@ -740,32 +852,6 @@ $('#agenda-form').addEventListener('submit', (event) => {
   toast('Agenda saved');
 });
 $('#ag-text').addEventListener('input', () => { dirty.agenda = true; });
-
-$('#window-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  act({
-    t: 'addWindow',
-    label: $('#w-label').value,
-    startMin: Number($('#w-start').value),
-    durationMin: Number($('#w-len').value),
-  });
-  event.target.reset();
-});
-
-$('#prediction-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  dirty.prediction = false;
-  act({ t: 'setPrediction', question: $('#p-question').value });
-});
-$('#p-question').addEventListener('input', () => { dirty.prediction = true; });
-
-$('#bingo-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  dirty.bingo = false;
-  act({ t: 'bingoWords', words: $('#b-words').value.split('\n') });
-  toast('Bingo words saved. Cards were reset.');
-});
-$('#b-words').addEventListener('input', () => { dirty.bingo = true; });
 
 const sendQuiet = () => act({ t: 'quiet', on: $('#quiet-on').checked, everyMin: Number($('#quiet-every').value) });
 $('#quiet-on').addEventListener('change', sendQuiet);
@@ -837,7 +923,6 @@ const showFeature = (name) => {
     if (el.dataset.feature === name) el.removeAttribute('data-off');
     else el.setAttribute('data-off', '');
   }
-  if (name === 'games') $('#games-fold').open = true;
   featureSelect.value = name;
   if (name === 'questions') fresh.questions = [];
   if (name === 'reactions') fresh.reactions = 0;
@@ -913,3 +998,12 @@ async function addInviteButton() {
 }
 
 if (embedded) addInviteButton();
+
+resetMomentForm();
+
+// Close the "More" menu after choosing an action or clicking elsewhere.
+document.addEventListener('click', (event) => {
+  for (const menu of $$('.menu[open]')) {
+    if (!menu.contains(event.target) || event.target.closest('.menu-pop button')) menu.open = false;
+  }
+});

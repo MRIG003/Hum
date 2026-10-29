@@ -8,6 +8,7 @@ import { ActionError, Meeting } from '../server/meeting.js';
 import { meetingCsv } from '../server/export.js';
 import { createApp } from '../server/index.js';
 import { openSqliteStore } from '../server/store.js';
+import { floorReact } from './helpers.js';
 
 const make = (agenda = 'Intro, 5\nDemo, 10') => {
   let now = 1_000_000;
@@ -20,7 +21,7 @@ const make = (agenda = 'Intro, 5\nDemo, 10') => {
 test('serialize and restore round-trips a meeting, and tokens survive as hashes only', () => {
   const { meeting, advance } = make();
   const a = meeting.join({ name: 'Priya' });
-  meeting.react(a.id, 'agree');
+  floorReact(meeting, a.id, 'agree');
   meeting.ask(a.id, 'When is launch?');
   meeting.launchMoment({ type: 'pulse', prompt: 'How is it?', durationSec: 30 });
   meeting.respond(a.id, meeting.moment.id, 4);
@@ -287,9 +288,9 @@ test('people list shows who has been quiet and for how long, with presenters mar
   const a = meeting.join({ name: 'Priya Sharma' });
   const b = meeting.join({ name: 'Dev Patel' });
   const c = meeting.join({ name: 'Mei Chen' });
-  meeting.react(a.id, 'agree');
+  floorReact(meeting, a.id, 'agree');
   advance(7 * 60_000);
-  meeting.react(b.id, 'agree');
+  floorReact(meeting, b.id, 'agree');
   meeting.setPresenting(c.id, true);
   const byName = Object.fromEntries(meeting.people().map((p) => [p.name, p]));
   assert.equal(Math.floor(byName['Priya Sharma'].quietMs / 60_000), 7);
@@ -307,7 +308,7 @@ test('person detail: timeline, reactions, prompts answered, questions, and no an
   const { meeting, advance } = make();
   const a = meeting.join({ name: 'Priya Sharma' });
   const b = meeting.join({ name: 'Dev Patel' });
-  meeting.react(a.id, 'lost');
+  floorReact(meeting, a.id, 'lost');
   meeting.ask(a.id, 'When is launch?');
   meeting.launchMoment({ type: 'recall', prompt: 'What changed?', options: ['A', 'B'], correct: 0 });
   meeting.respond(a.id, meeting.moment.id, 'missed');
@@ -333,7 +334,7 @@ test('people are host-only: attendees never receive other names or activity', ()
   const { meeting } = make();
   const a = meeting.join({ name: 'Priya Sharma' });
   const b = meeting.join({ name: 'Dev Patel' });
-  meeting.react(a.id, 'agree');
+  floorReact(meeting, a.id, 'agree');
   const attendeeView = JSON.stringify(meeting.attendeeSnapshot(b.id));
   assert.ok(!attendeeView.includes('Priya') && !attendeeView.includes('"people"') && !attendeeView.includes('quietMs'));
   assert.ok(meeting.hostSnapshot().people.some((p) => p.name === 'Priya Sharma'));

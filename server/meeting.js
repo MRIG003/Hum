@@ -1,24 +1,20 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { GAME_KINDS, GAME_LABELS, makeRound } from './games.js';
 
 export const PLATFORMS = ['meet', 'zoom', 'teams', 'zoho', 'other'];
 
 export const REACTIONS = ['agree', 'question', 'lost', 'fast', 'move_on'];
 
-export const DEFAULT_BINGO_WORDS = [
-  'synergy', 'bandwidth', 'KPI', 'deep dive', 'circle back', 'take offline',
-  'alignment', 'ping me', 'roadmap', 'stakeholders', 'low-hanging fruit', 'action item',
-  'next steps', 'leverage', 'north star', 'quick win', 'blocker', 'ETA',
-  'touch base', 'double click', 'at the end of the day', 'move the needle',
-  'on the same page', 'offline',
-];
-
 const ENGAGEMENT_WINDOW_MS = 5 * 60_000;
 const REACTION_WINDOW_MS = 2 * 60_000;
-const REACTION_COOLDOWN_MS = 3_000;
 const MAX_PARTICIPANTS = 500;
 const MAX_QUESTIONS = 200;
 const MAX_SERIES = 720;
-const NUDGE_MS = 30_000;
+const FLOOR_DEFAULT_SEC = 60;
+const FLOOR_LENGTHS_SEC = [30, 60, 120, 300];
+const GAME_ROUND_SECS = [5, 8, 10, 15, 20];
+const GAME_REVEAL_MS = 3_000;
+const GAME_DONE_KEEP_MS = 90_000;
 const SUGGESTION_COOLDOWN_MS = 5 * 60_000;
 const RECALL_CAP_MS = 15 * 60_000;
 const RECALL_DEFAULT_SEC = 20;
@@ -39,31 +35,15 @@ const POINTS = {
   poll: 10,
   wordcloud: 10,
   quizCorrect: 30,
-  bingoMark: 10,
-  bingoLine: 50,
-  prediction: 5,
-  predictionCorrect: 25,
+  gameCorrect: 100,
+  gameSpeed: 50, // extra for answering fast, scaled by time left
 };
-
-const LINES = [
-  [0, 1, 2], [3, 4, 5], [6, 7, 8],
-  [0, 3, 6], [1, 4, 7], [2, 5, 8],
-  [0, 4, 8], [2, 4, 6],
-];
 
 export class ActionError extends Error {}
 
 const clean = (value, max) =>
   String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 
-const shuffle = (items) => {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1);
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-};
 
 const newId = (bytes = 6) => randomBytes(bytes).toString('hex');
 
@@ -129,10 +109,9 @@ export class Meeting {
     this.momentHistory = [];
     this.focus = false;
 
-    this.gamesOpen = false;
-    this.gameWindows = [];
-    this.bingoWords = [...DEFAULT_BINGO_WORDS];
-    this.prediction = this.#freshPrediction('Will this meeting run over?');
+    this.game = null; // the quick game being played, if any (not persisted)
+    this.gameLog = []; // finished games, for the summary
+    this.lastFloor = null; // reaction counts from the last time the floor was open
 
     this.quiet = { on: false, everyMin: 20 };
     this.lastPulseAt = this.startedAt;
@@ -170,12 +149,8 @@ export class Meeting {
       connected: true,
       lastActionAt: 0,
       points: 0,
-      counts: { reactions: 0, questions: 0, votes: 0, answers: 0, bingo: 0, predictions: 0 },
-      card: shuffle(this.bingoWords).slice(0, 9),
-      marks: new Set(),
-      paidMarks: new Set(),
-      lines: new Set(),
-      lastReactionAt: {},
+      counts: { reactions: 0, questions: 0, votes: 0, answers: 0, games: 0 },
+      floorReactions: null, // { floorId, kinds } — each emoji once per opening of the floor
     };
     this.participants.set(participant.id, participant);
     return participant;
@@ -226,20 +201,21 @@ export class Meeting {
     if (this.focus) throw new ActionError('Focus moment: prompts and games are paused.');
   }
 
-  #requireGames() {
-    this.#requireOpenFloor();
-    if (!this.gamesOpen) throw new ActionError('Games are not open right now.');
-  }
-
   // ---- attendee actions ---------------------------------------------------
 
+  // Reactions are open only while the host has opened the floor, and each person can send each
+  // emoji once per opening. Different emojis are fine.
   react(pid, kind) {
     this.#requireLive();
     if (!REACTIONS.includes(kind)) throw new ActionError('Unknown reaction.');
     const p = this.#participant(pid);
+    const floor = this.nudge;
+    if (!floor) throw new ActionError('Reactions open when the host opens the floor.');
+    if (p.floorReactions?.floorId !== floor.id) p.floorReactions = { floorId: floor.id, kinds: [] };
+    if (p.floorReactions.kinds.includes(kind)) return;
+    p.floorReactions.kinds.push(kind);
+    floor.counts[kind] += 1;
     const now = this.clock();
-    if (now - (p.lastReactionAt[kind] ?? 0) < REACTION_COOLDOWN_MS) return;
-    p.lastReactionAt[kind] = now;
     this.reactionLog.push({ pid, kind, t: now });
     this.#touch(p, 'reaction', POINTS.reaction, 'reactions');
   }
@@ -311,40 +287,6 @@ export class Meeting {
     this.#touch(p, mo.type, mo.type === 'pulse' ? POINTS.pulse : mo.type === 'poll' ? POINTS.poll : 0, 'answers');
   }
 
-  markBingo(pid, word) {
-    this.#requireGames();
-    const p = this.#participant(pid);
-    const index = p.card.indexOf(word);
-    if (index === -1) throw new ActionError('That word is not on your card.');
-    if (p.marks.has(index)) {
-      p.marks.delete(index);
-      return;
-    }
-    p.marks.add(index);
-    let points = 0;
-    if (!p.paidMarks.has(index)) {
-      p.paidMarks.add(index);
-      points += POINTS.bingoMark;
-    }
-    for (const [lineIndex, line] of LINES.entries()) {
-      if (!p.lines.has(lineIndex) && line.every((cell) => p.marks.has(cell))) {
-        p.lines.add(lineIndex);
-        points += POINTS.bingoLine;
-      }
-    }
-    this.#touch(p, 'bingo', points, 'bingo');
-  }
-
-  predict(pid, choice) {
-    this.#requireGames();
-    const p = this.#participant(pid);
-    if (this.prediction.status !== 'open') throw new ActionError('Predictions are closed.');
-    if (choice !== 'yes' && choice !== 'no') throw new ActionError('Pick yes or no.');
-    const first = !this.prediction.answers.has(pid);
-    this.prediction.answers.set(pid, choice);
-    this.#touch(p, 'prediction', first ? POINTS.prediction : 0, first ? 'predictions' : null);
-  }
-
   // ---- host actions -------------------------------------------------------
 
   #validateSpec({ type, prompt, options = [], correct = null }) {
@@ -369,6 +311,7 @@ export class Meeting {
 
   launchMoment({ type, prompt, options = [], correct = null, durationSec = 0, auto = false, override = false }) {
     this.#requireLive();
+    if (this.game && this.game.status !== 'done') throw new ActionError('Finish or stop the game first.');
     const { text, cleaned, correctIndex } = this.#validateSpec({ type, prompt, options, correct });
 
     const now = this.clock();
@@ -505,68 +448,8 @@ export class Meeting {
   setFocus(on) {
     this.#requireLive();
     this.focus = Boolean(on);
+    if (this.focus && this.game && this.game.status !== 'done') this.#finishGame(this.clock());
     this.events.push({ t: this.clock(), type: this.focus ? 'focus' : 'resume' });
-  }
-
-  setGames(on) {
-    this.#requireLive();
-    this.gamesOpen = Boolean(on);
-  }
-
-  addGameWindow({ startMin, durationMin, label }) {
-    this.#requireLive();
-    const start = Number(startMin);
-    const duration = Number(durationMin);
-    if (!(start >= 0 && start <= 600)) throw new ActionError('Start must be 0 to 600 minutes.');
-    if (!(duration >= 1 && duration <= 120)) throw new ActionError('Length must be 1 to 120 minutes.');
-    if (this.gameWindows.length >= 10) throw new ActionError('Up to 10 game windows.');
-    this.gameWindows.push({
-      id: newId(3),
-      startMin: start,
-      durationMin: duration,
-      label: clean(label, 40) || 'Game window',
-      wasIn: false,
-    });
-    this.gameWindows.sort((a, b) => a.startMin - b.startMin);
-  }
-
-  removeGameWindow(id) {
-    this.gameWindows = this.gameWindows.filter((w) => w.id !== id);
-  }
-
-  setBingoWords(words) {
-    this.#requireLive();
-    const unique = [...new Set(words.map((w) => clean(w, 30)).filter(Boolean))].slice(0, 40);
-    if (unique.length < 9) throw new ActionError('Add at least 9 different words.');
-    this.bingoWords = unique;
-    for (const p of this.participants.values()) {
-      p.card = shuffle(unique).slice(0, 9);
-      p.marks.clear();
-      p.paidMarks.clear();
-      p.lines.clear();
-    }
-  }
-
-  setPrediction(question) {
-    this.#requireLive();
-    const text = clean(question, 120);
-    if (!text) throw new ActionError('Add a yes/no question.');
-    this.prediction = this.#freshPrediction(text);
-  }
-
-  resolvePrediction(result) {
-    this.#requireLive();
-    if (result !== 'yes' && result !== 'no') throw new ActionError('Pick yes or no.');
-    const prediction = this.prediction;
-    if (prediction.status === 'resolved') return;
-    prediction.status = 'resolved';
-    prediction.result = result;
-    for (const [pid, choice] of prediction.answers) {
-      if (choice === result) {
-        const p = this.participants.get(pid);
-        if (p) p.points += POINTS.predictionCorrect;
-      }
-    }
   }
 
   setQuestionAnswered(id, answered = true) {
@@ -608,12 +491,145 @@ export class Meeting {
     this.lastPulseAt = Math.max(this.lastPulseAt, this.clock());
   }
 
-  openTheFloor() {
+  openTheFloor(durationSec = FLOOR_DEFAULT_SEC) {
     this.#requireLive();
     const now = this.clock();
-    this.nudge = { id: newId(3), until: now + NUDGE_MS };
+    const seconds = FLOOR_LENGTHS_SEC.includes(Number(durationSec)) ? Number(durationSec) : FLOOR_DEFAULT_SEC;
+    this.nudge = { id: newId(3), until: now + seconds * 1000, counts: Object.fromEntries(REACTIONS.map((k) => [k, 0])) };
     this.suggestionsSuppressedUntil = now + SUGGESTION_COOLDOWN_MS;
     this.events.push({ t: now, type: 'floor' });
+  }
+
+  closeTheFloor() {
+    if (!this.nudge) return;
+    this.lastFloor = { counts: this.nudge.counts, closedAt: this.clock() };
+    this.nudge = null;
+  }
+
+  // ---- quick games -----------------------------------------------------------
+
+  startGame({ kind = 'mixed', rounds = 5, roundSec = 10 } = {}) {
+    this.#requireLive();
+    if (this.focus) throw new ActionError('Focus moment: prompts and games are paused.');
+    if (this.moment?.status === 'open') throw new ActionError('Close the current prompt first.');
+    if (this.game && this.game.status !== 'done') throw new ActionError('A game is already running.');
+    if (!GAME_KINDS.includes(kind)) throw new ActionError('Unknown game.');
+    const count = Math.min(10, Math.max(1, Number.parseInt(rounds, 10) || 5));
+    const seconds = GAME_ROUND_SECS.includes(Number(roundSec)) ? Number(roundSec) : 10;
+    const now = this.clock();
+    this.game = { id: newId(3), kind, rounds: count, roundSec: seconds, roundNo: 0, status: 'playing', scores: new Map(), startedAt: now };
+    this.#nextGameRound(now);
+    this.events.push({ t: now, type: 'game' });
+  }
+
+  #nextGameRound(now) {
+    const g = this.game;
+    g.roundNo += 1;
+    g.roundId = newId(3);
+    g.question = makeRound(g.kind);
+    g.answers = new Map();
+    g.status = 'playing';
+    g.roundStartedAt = now;
+    g.roundEndsAt = now + g.roundSec * 1000;
+  }
+
+  answerGame(pid, roundId, choice) {
+    this.#requireLive();
+    const g = this.game;
+    const p = this.#participant(pid);
+    if (!g || g.status !== 'playing' || g.roundId !== roundId) throw new ActionError('That round is over.');
+    if (g.answers.has(pid)) return;
+    const index = Number.parseInt(choice, 10);
+    if (!(index >= 0 && index < g.question.options.length)) throw new ActionError('Pick one of the options.');
+    const now = this.clock();
+    const correct = index === g.question.correct;
+    const left = Math.max(0, g.roundEndsAt - now) / (g.roundSec * 1000);
+    const points = correct ? POINTS.gameCorrect + Math.round(POINTS.gameSpeed * left) : 0;
+    g.answers.set(pid, { choice: index, correct, points });
+    const score = g.scores.get(pid) ?? { points: 0, correct: 0, answered: 0 };
+    score.points += points;
+    score.correct += correct ? 1 : 0;
+    score.answered += 1;
+    g.scores.set(pid, score);
+    this.#touch(p, 'game', points, 'games');
+  }
+
+  stopGame() {
+    const g = this.game;
+    if (!g) return;
+    if (g.status === 'done') {
+      this.game = null;
+      return;
+    }
+    this.#finishGame(this.clock());
+  }
+
+  #finishGame(now) {
+    const g = this.game;
+    g.status = 'done';
+    g.doneAt = now;
+    // Group numbers only: Engage never ranks people against each other.
+    const scores = [...g.scores.values()];
+    const answered = scores.reduce((n, s) => n + s.answered, 0);
+    const right = scores.reduce((n, s) => n + s.correct, 0);
+    g.accuracy = answered ? Math.round((right / answered) * 100) : null;
+    this.gameLog.push({ kind: g.kind, label: GAME_LABELS[g.kind], rounds: g.roundNo, players: g.scores.size, accuracy: g.accuracy, t: now });
+  }
+
+  #gameTick(now) {
+    const g = this.game;
+    if (!g) return false;
+    if (g.status === 'playing') {
+      const players = [...this.participants.values()].filter((p) => p.connected && !p.presenting).length;
+      if (now >= g.roundEndsAt || (players > 0 && g.answers.size >= players)) {
+        g.status = 'reveal';
+        g.revealUntil = now + GAME_REVEAL_MS;
+        return true;
+      }
+      return false;
+    }
+    if (g.status === 'reveal' && now >= g.revealUntil) {
+      if (g.roundNo < g.rounds) this.#nextGameRound(now);
+      else this.#finishGame(now);
+      return true;
+    }
+    if (g.status === 'done' && now >= g.doneAt + GAME_DONE_KEEP_MS) {
+      this.game = null;
+      return true;
+    }
+    return false;
+  }
+
+  #publicGame(pid) {
+    const g = this.game;
+    if (!g) return null;
+    const host = pid === null;
+    const reveal = g.status !== 'playing';
+    const base = {
+      id: g.id,
+      kind: g.kind,
+      label: GAME_LABELS[g.kind],
+      rounds: g.rounds,
+      roundNo: g.roundNo,
+      roundId: g.roundId,
+      roundSec: g.roundSec,
+      status: g.status,
+      roundEndsAt: g.roundEndsAt,
+      revealUntil: g.revealUntil ?? null,
+      question: {
+        prompt: g.question.prompt,
+        kind: g.question.kind,
+        options: g.question.options,
+        correct: host || reveal ? g.question.correct : null,
+        hint: reveal ? g.question.hint ?? null : null,
+      },
+    };
+    if (host) {
+      const round = [...g.answers.values()];
+      return { ...base, answered: round.length, rightThisRound: round.filter((a) => a.correct).length, players: g.scores.size, accuracy: g.accuracy ?? null };
+    }
+    const mine = g.scores.get(pid) ?? { points: 0, correct: 0, answered: 0 };
+    return { ...base, mine: g.answers.get(pid) ?? null, score: mine, accuracy: g.status === 'done' ? g.accuracy ?? null : null };
   }
 
   resetClock() {
@@ -624,7 +640,6 @@ export class Meeting {
     this.events = [];
     this.lastSampleAt = 0;
     this.lastPulseAt = now;
-    for (const w of this.gameWindows) w.wasIn = false;
   }
 
   end() {
@@ -634,7 +649,9 @@ export class Meeting {
     this.status = 'ended';
     this.endedAt = this.clock();
     this.focus = false;
-    this.gamesOpen = false;
+    if (this.game && this.game.status !== 'done') this.#finishGame(this.clock());
+    this.game = null;
+    this.closeTheFloor();
   }
 
   // ---- time-driven behaviour ---------------------------------------------
@@ -650,25 +667,14 @@ export class Meeting {
     }
 
     if (this.nudge && now >= this.nudge.until) {
-      this.nudge = null;
+      this.closeTheFloor();
       changed = true;
     }
 
-    const elapsedMin = (now - this.startedAt) / 60_000;
-    for (const w of this.gameWindows) {
-      const inside = elapsedMin >= w.startMin && elapsedMin < w.startMin + w.durationMin;
-      if (inside && !w.wasIn) {
-        this.gamesOpen = true;
-        changed = true;
-      } else if (!inside && w.wasIn) {
-        this.gamesOpen = false;
-        changed = true;
-      }
-      w.wasIn = inside;
-    }
+    if (this.#gameTick(now)) changed = true;
 
     if (
-      this.quiet.on && !this.focus && this.moment?.status !== 'open' &&
+      this.quiet.on && !this.focus && this.moment?.status !== 'open' && (!this.game || this.game.status === 'done') &&
       now - this.lastPulseAt >= this.quiet.everyMin * 60_000
     ) {
       this.launchMoment({
@@ -918,10 +924,6 @@ export class Meeting {
     return { insights: insights.slice(0, 5), next };
   }
 
-  #freshPrediction(question) {
-    return { question, status: 'open', result: null, answers: new Map() };
-  }
-
   #momentResults(mo) {
     const total = mo.responses.size;
     if (mo.type === 'recall') {
@@ -1012,28 +1014,6 @@ export class Meeting {
       }));
   }
 
-  #nextWindow(now) {
-    const elapsedMin = (now - this.startedAt) / 60_000;
-    const upcoming = this.gameWindows.find((w) => w.startMin > elapsedMin);
-    const current = this.gameWindows.find(
-      (w) => elapsedMin >= w.startMin && elapsedMin < w.startMin + w.durationMin,
-    );
-    return {
-      current: current ? { label: current.label, endsAt: this.startedAt + (current.startMin + current.durationMin) * 60_000 } : null,
-      next: upcoming ? { label: upcoming.label, startsAt: this.startedAt + upcoming.startMin * 60_000 } : null,
-    };
-  }
-
-  #predictionCounts() {
-    let yes = 0;
-    let no = 0;
-    for (const choice of this.prediction.answers.values()) {
-      if (choice === 'yes') yes += 1;
-      else no += 1;
-    }
-    return { yes, no };
-  }
-
   participationSpread() {
     const perPerson = new Map();
     for (const a of this.actions) perPerson.set(a.pid, (perPerson.get(a.pid) ?? 0) + 1);
@@ -1077,11 +1057,7 @@ export class Meeting {
         longestQuietMs: this.#longestQuietMs(this.participants.get(person.id), now),
       })),
       unanswered: open.length,
-      prediction: {
-        question: this.prediction.question,
-        result: this.prediction.result,
-        ...this.#predictionCounts(),
-      },
+      games: this.gameLog,
     };
   }
 
@@ -1201,11 +1177,7 @@ export class Meeting {
         lastActionAt: p.lastActionAt,
         points: p.points,
         counts: p.counts,
-        card: p.card,
-        marks: [...p.marks],
-        paidMarks: [...p.paidMarks],
-        lines: [...p.lines],
-        lastReactionAt: p.lastReactionAt,
+        floorReactions: p.floorReactions ?? null,
       })),
       actions: this.actions,
       responseLog: this.responseLog,
@@ -1229,10 +1201,9 @@ export class Meeting {
         : null,
       momentHistory: this.momentHistory,
       focus: this.focus,
-      gamesOpen: this.gamesOpen,
-      gameWindows: this.gameWindows,
-      bingoWords: this.bingoWords,
-      prediction: { ...this.prediction, answers: [...this.prediction.answers.entries()] },
+      gameLog: this.gameLog,
+      floor: this.nudge,
+      lastFloor: this.lastFloor,
       quiet: this.quiet,
       lastPulseAt: this.lastPulseAt,
       suggestionsSuppressedUntil: this.suggestionsSuppressedUntil,
@@ -1266,9 +1237,8 @@ export class Meeting {
         ...p,
         presenting: Boolean(p.presenting),
         connected: false,
-        marks: new Set(p.marks),
-        paidMarks: new Set(p.paidMarks),
-        lines: new Set(p.lines),
+        counts: { reactions: 0, questions: 0, votes: 0, answers: 0, games: 0, ...p.counts },
+        floorReactions: p.floorReactions ?? null,
       });
     }
     m.actions = data.actions;
@@ -1281,10 +1251,9 @@ export class Meeting {
     m.moment = data.moment ? { ...data.moment, responses: new Map(data.moment.responses) } : null;
     m.momentHistory = data.momentHistory;
     m.focus = data.focus;
-    m.gamesOpen = data.gamesOpen;
-    m.gameWindows = data.gameWindows;
-    m.bingoWords = data.bingoWords;
-    m.prediction = { ...data.prediction, answers: new Map(data.prediction.answers) };
+    m.gameLog = data.gameLog ?? [];
+    m.nudge = data.floor?.counts ? data.floor : null;
+    m.lastFloor = data.lastFloor ?? null;
     m.quiet = data.quiet;
     m.lastPulseAt = data.lastPulseAt;
     m.suggestionsSuppressedUntil = data.suggestionsSuppressedUntil;
@@ -1325,15 +1294,11 @@ export class Meeting {
       questions: this.#publicQuestions(null),
       moment: this.#publicMoment(this.moment, null),
       focus: this.focus,
-      gamesOpen: this.gamesOpen,
-      gameWindows: this.gameWindows.map(({ id, startMin, durationMin, label }) => ({ id, startMin, durationMin, label })),
-      bingoWords: this.bingoWords,
-      prediction: {
-        question: this.prediction.question,
-        status: this.prediction.status,
-        result: this.prediction.result,
-        ...this.#predictionCounts(),
-      },
+      game: this.#publicGame(null),
+      gameLog: this.gameLog,
+      floor: this.nudge
+        ? { open: true, closesAt: this.nudge.until, counts: this.nudge.counts }
+        : { open: false, last: this.lastFloor },
       quiet: this.quiet,
       suggestions: this.suggestions(now),
       floorOpen: Boolean(this.nudge),
@@ -1360,18 +1325,13 @@ export class Meeting {
       startedAt: this.startedAt,
       me: { id: p.id, name: p.name, points: p.points, counts: p.counts },
       focus: this.focus,
-      gamesOpen: this.gamesOpen,
-      windows: this.#nextWindow(now),
+      game: this.#publicGame(pid),
       moment: this.#publicMoment(this.moment, pid),
       questions: this.#publicQuestions(pid),
-      card: { words: p.card, marks: [...p.marks], lines: [...p.lines] },
-      prediction: {
-        question: this.prediction.question,
-        status: this.prediction.status,
-        result: this.prediction.result,
-        mine: this.prediction.answers.get(pid) ?? null,
-      },
       floorOpen: Boolean(this.nudge),
+      floor: this.nudge
+        ? { open: true, closesAt: this.nudge.until, mine: p.floorReactions?.floorId === this.nudge.id ? p.floorReactions.kinds : [] }
+        : { open: false },
     };
     if (this.status === 'ended') {
       const summary = this.summary();
@@ -1381,7 +1341,6 @@ export class Meeting {
         participationRate: summary.participationRate,
         moments: summary.moments,
         topQuestions: summary.topQuestions,
-        prediction: summary.prediction,
         myQuestions: this.questions
           .filter((q) => q.authorPid === pid)
           .map((q) => ({ text: q.text, answered: q.answered, votes: q.votes.size })),

@@ -46,7 +46,7 @@
           <b>What the host cannot see</b>
           <ul>
             <li>Your video, audio, screen, or which other windows you have open</li>
-            <li>Your points, bingo card, predictions or notes</li>
+            <li>Your points, game scores or notes</li>
           </ul>
         </div>
         <p class="small muted"><a href="/privacy.html" target="_blank" rel="noopener noreferrer">How Engage handles data</a></p>
@@ -64,7 +64,7 @@
 
     <div class="tabs att-tabs" id="att-tabs" role="tablist">
       <button role="tab" aria-selected="true" data-tab="live">Live</button>
-      <button role="tab" aria-selected="false" data-tab="play">Games &amp; notes</button>
+      <button role="tab" aria-selected="false" data-tab="play">My notes</button>
     </div>
 
     <div class="att-grid" id="att-grid" data-active="live">
@@ -75,8 +75,8 @@
         </section>
 
         <section class="card" aria-label="Reactions">
-          <h2>Quick reactions</h2>
-          <div class="react-bar" id="reactions"></div>
+          <h2>Reactions</h2>
+          <div id="reactions"></div>
         </section>
 
         <section class="card" aria-label="Questions">
@@ -93,18 +93,6 @@
       </div>
 
       <div class="col stack" data-panel="play">
-        <section class="card" id="games-card" aria-label="Games">
-          <div class="card-head"><h2>Buzzword bingo</h2><span class="chip" id="games-chip"></span></div>
-          <p class="small muted" id="games-note"></p>
-          <div class="bingo" id="bingo" style="margin-top: 10px"></div>
-
-          <h3 style="margin-top: 16px" id="pred-question"></h3>
-          <div class="row" id="pred-buttons" style="margin-top: 8px"></div>
-          <p class="small muted" id="pred-note" style="margin-top: 6px"></p>
-
-          <div class="score" style="margin-top: 16px"><span>Your score <span class="small muted">(private)</span></span><b class="num" id="score">0 pts</b></div>
-        </section>
-
         <section class="card" aria-label="Private notes">
           <div class="card-head"><h2>My notes</h2><span class="chip">Stays on this device</span></div>
           <textarea id="notes" rows="5" placeholder="Jot down anything. Nobody else can see this." aria-label="Notes"></textarea>

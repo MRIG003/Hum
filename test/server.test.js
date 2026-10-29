@@ -77,12 +77,15 @@ test('host and attendees see each other live', async () => {
   const dev = await open({ t: 'hello', role: 'attendee', code, name: 'Dev Patel' });
 
   await host.until((m) => m.t === 'state' && m.state.counts.connected === 2);
+  host.send({ t: 'floor', durationSec: 60 });
+  await priya.until((m) => m.t === 'state' && m.state.floor?.open);
   priya.send({ t: 'react', kind: 'lost' });
   priya.send({ t: 'ask', text: 'Who owns billing?' });
   dev.send({ t: 'ask', text: 'Is this shown with my name?' });
 
   const state = (await host.until((m) => m.t === 'state' && m.state.questions.length === 2)).state;
   assert.equal(state.reactions.lost, 1);
+  assert.equal(state.floor.counts.lost, 1);
   assert.deepEqual(state.questions.map((q) => q.author).sort(), ['Dev Patel', 'Priya']);
   assert.equal(state.engagement.pct, 100);
   assert.equal(state.counts.participated, 2);

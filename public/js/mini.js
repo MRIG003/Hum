@@ -1,5 +1,5 @@
 import { esc, REACTION_LABELS, storage } from './common.js';
-import { momentHtml, hasWaiting } from './views.js';
+import { gameHtml, hasWaiting, momentHtml, reactionsHtml } from './views.js';
 
 const NOTE_KEY = 'engage.mini.noteSeen';
 const AUTO_KEY = 'engage.mini.autoOpen';
@@ -69,23 +69,16 @@ export const createMini = ({ send, now, onClosed, onPresent }) => {
 
   const gamesHtml = () => {
     if (state.focus) return '<div class="banner focus"><b>Paused.</b> The host started a Focus moment.</div>';
-    if (!state.gamesOpen) return '<div class="mini-box"><p class="muted">Games are closed. The host opens them during breaks.</p></div>';
-    const { card, prediction } = state;
-    const open = prediction.status === 'open';
-    return `<div class="mini-box"><b>Bingo</b><div class="bingo">${card.words.map((w, i) =>
-      `<button data-bingo="${esc(w)}" class="${card.marks.includes(i) ? 'on' : ''}" aria-pressed="${card.marks.includes(i)}">${esc(w)}</button>`).join('')}</div></div>
-      <div class="mini-box"><b>${esc(prediction.question)}</b><div class="row">${['yes', 'no'].map((c) =>
-        `<button data-predict="${c}" class="${prediction.mine === c ? 'selected' : ''}" ${open ? '' : 'disabled'}>${c === 'yes' ? 'Yes' : 'No'}</button>`).join('')}</div>
-      <p class="small muted">Your points are private: ${state.me.points} pts.</p></div>`;
+    if (!state.game) return '<div class="mini-box"><p class="muted">No game right now. The host starts quick games for everyone.</p></div>';
+    return `<div class="mini-box" aria-live="polite">${gameHtml(state)}</div>`;
   };
 
   const liveHtml = () => {
     const parts = [];
     if (state.focus) parts.push('<div class="banner focus" role="status"><b>Focus moment.</b> The host paused prompts and games. Back to the meeting.</div>');
-    if (state.floorOpen && !state.focus) parts.push('<div class="banner" role="status"><b>The host invites your view</b> on the next topic. Write a question below.</div>');
-    parts.push(`<div class="mini-box" aria-live="polite">${momentHtml(state)}</div>`);
-    parts.push(`<div class="react-bar">${Object.entries(REACTION_LABELS).map(([k, r]) =>
-      `<button data-react="${k}" aria-label="${esc(r.label)}"><span class="emoji" aria-hidden="true">${r.emoji}</span>${esc(r.label)}</button>`).join('')}</div>`);
+    if (state.floorOpen && !state.focus) parts.push('<div class="banner" role="status"><b>The floor is open.</b> React once with each emoji, or write a question below.</div>');
+    parts.push(`<div class="mini-box" aria-live="polite">${state.game ? gameHtml(state) : momentHtml(state)}</div>`);
+    parts.push(reactionsHtml(state, REACTION_LABELS));
     parts.push('<div class="row"><input class="mini-ask grow" type="text" maxlength="280" placeholder="Ask the host a question" aria-label="Ask the host a question"><button class="primary" data-m="ask">Ask</button></div>');
     return parts.join('');
   };
@@ -99,7 +92,7 @@ export const createMini = ({ send, now, onClosed, onPresent }) => {
       <div class="mini-head"><span class="mark" aria-hidden="true"></span><span class="t">${esc(state.title)}</span>
         <button class="icon-btn" data-m="present" aria-label="I'm presenting. Close Engage" title="I'm presenting">${ICON_PRESENT}</button>
         <button class="icon-btn" data-m="min" aria-label="Shrink to a pill" title="Shrink">${ICON_MIN}</button></div>
-      <div class="mini-tabs" role="tablist"><button role="tab" aria-selected="${tab === 'live'}" data-tab="live">Live</button><button role="tab" aria-selected="${tab === 'play'}" data-tab="play">Games</button></div>
+      <div class="mini-tabs" role="tablist"><button role="tab" aria-selected="${tab === 'live'}" data-tab="live">Live</button><button role="tab" aria-selected="${tab === 'play'}" data-tab="play">Game</button></div>
       <div class="mini-body">${tab === 'live' ? liveHtml() : gamesHtml()}</div>
       <label class="check mini-auto"><input type="checkbox" data-m="auto" ${autoPref() ? 'checked' : ''}> Open for quick checks</label></div>`;
   };
@@ -119,8 +112,8 @@ export const createMini = ({ send, now, onClosed, onPresent }) => {
     tick();
   };
 
-  const key = () => JSON.stringify([mode, tab, noteOpen, state?.moment, state?.focus, state?.floorOpen, state?.gamesOpen,
-    state?.card, state?.prediction, state?.me?.points, state?.title]);
+  const key = () => JSON.stringify([mode, tab, noteOpen, state?.moment, state?.focus, state?.floorOpen, state?.floor,
+    state?.game, state?.me?.points, state?.title]);
 
   const setMode = (next, auto = false) => {
     mode = next;
@@ -173,8 +166,7 @@ export const createMini = ({ send, now, onClosed, onPresent }) => {
       render();
     } else if (el.dataset.answer !== undefined && state?.moment) send({ t: 'respond', momentId: state.moment.id, value: el.dataset.answer });
     else if (el.dataset.react) send({ t: 'react', kind: el.dataset.react });
-    else if (el.dataset.bingo) send({ t: 'bingo', word: el.dataset.bingo });
-    else if (el.dataset.predict) send({ t: 'predict', choice: el.dataset.predict });
+    else if (el.dataset.gameChoice !== undefined && state?.game) send({ t: 'game', roundId: state.game.roundId, choice: Number(el.dataset.gameChoice) });
   };
 
   const onSubmit = (event) => {

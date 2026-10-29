@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { Meeting } from '../server/meeting.js';
 import { meetingCsv } from '../server/export.js';
 import { MemoryStore } from '../server/store.js';
+import { floorReact } from './helpers.js';
 
 const root = new URL('..', import.meta.url).pathname;
 const files = (dir, ext) =>
@@ -61,7 +62,7 @@ test('privacy: no ranking or leaderboard, and attendees never see anyone else\'s
     assert.ok(!/leaderboard|\branking\b|\brank\b/i.test(text), `${name} must not rank people`);
   }
   const { meeting, named, quiet } = setup();
-  meeting.react(named.id, 'agree');
+  floorReact(meeting, named.id, 'agree');
   const view = JSON.stringify(meeting.attendeeSnapshot(quiet.id));
   assert.ok(!view.includes('Priya'), 'another attendee\'s name must not appear');
   assert.ok(!view.includes(named.id), 'another attendee\'s id must not appear');
@@ -124,7 +125,7 @@ test('heart of the product: samples, dips, suggestions and the coach summary sti
   const meeting = new Meeting({ code: 'HEART1', title: 'Heart', agenda: 'Intro, 5\nDeep dive, 20', clock: () => now, sampleMs: 30_000 });
   const people = Array.from({ length: 6 }, (_, i) => meeting.join({ name: `P${i}` }));
   for (let step = 0; step < 14; step++) {
-    if (step < 6) for (const p of people) meeting.react(p.id, 'agree');
+    if (step < 6) for (const p of people) floorReact(meeting, p.id, 'agree');
     now += 60_000;
     meeting.tick(now);
     meeting.tick(now + 30_000);

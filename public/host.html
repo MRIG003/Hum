@@ -35,8 +35,7 @@
         <option value="ask">Ask the room</option>
         <option value="questions">Questions</option>
         <option value="reactions">Reactions</option>
-        <option value="agenda">Agenda</option>
-        <option value="games">Games and automation</option>
+        <option value="games">Games</option>
         <option value="people">Who has been quiet</option>
         <option value="overview">Engagement over time</option>
         <option value="invite">Meeting code and invite link</option>
@@ -129,17 +128,21 @@
             <button role="tab" aria-selected="false" data-kind="wordcloud">Word cloud</button>
           </div>
           <form id="moment-form" class="stack" autocomplete="off">
+            <div>
+              <label for="f-library">Start from a ready-made question</label>
+              <select id="f-library"></select>
+            </div>
             <div id="f-prompt-wrap">
               <label for="f-prompt">Question</label>
-              <input id="f-prompt" type="text" maxlength="160" placeholder="Should we ship on Friday?">
+              <input id="f-prompt" type="text" maxlength="160" placeholder="Type your question">
             </div>
             <div id="f-options-wrap">
-              <label for="f-options">Options (one per line, 2 to 6)</label>
-              <textarea id="f-options" placeholder="Yes&#10;No&#10;Need more info"></textarea>
-            </div>
-            <div id="f-correct-wrap" hidden>
-              <label for="f-correct">Correct answer</label>
-              <select id="f-correct"></select>
+              <label id="f-options-label">Options</label>
+              <div id="f-option-list" class="option-list" aria-labelledby="f-options-label"></div>
+              <div class="row spread">
+                <button type="button" id="f-add-option" class="link-btn">+ Add option</button>
+                <span class="small muted" id="f-options-hint">Press Enter for the next option</span>
+              </div>
             </div>
             <p id="f-recall-note" class="small muted" hidden></p>
             <div id="f-topic-wrap" hidden>
@@ -165,75 +168,17 @@
 
         <section class="card" id="moment-card" data-feature="ask" aria-label="Current moment" hidden></section>
 
-        <section class="card" data-feature="questions" aria-label="Questions from the room">
-          <div class="card-head"><h2>Questions</h2><span class="small muted" id="q-count"></span></div>
-          <div class="q-list" id="questions"></div>
-        </section>
-      </div>
-
-      <div class="stack">
-        <section class="card" data-feature="reactions" aria-label="Reactions">
-          <div class="card-head"><h2>Reactions</h2><button data-action="floor" class="small" title="Invite everyone to share their view on the next topic">Open the floor</button></div>
-          <p class="small muted" style="margin: -4px 0 8px">Last 2 minutes</p>
-          <div class="reaction-grid" id="reactions"></div>
-        </section>
-
-        <section class="card" data-feature="agenda" aria-label="Agenda">
-          <div class="card-head"><h2>Agenda</h2><span class="small muted">optional</span></div>
+        <details class="card fold" id="agenda-fold" data-feature="ask" aria-label="Agenda">
+          <summary><h2>Agenda</h2><span class="small muted" id="ag-summary">optional</span></summary>
           <form id="agenda-form" class="stack" autocomplete="off">
-            <textarea id="ag-text" rows="5" aria-label="Agenda, one item per line with minutes" placeholder="Intro, 8&#10;Roadmap, 16&#10;Budget, 16&#10;Risks, 15"></textarea>
-            <div class="row spread"><span class="small muted">One per line: title, minutes. The chart splits by topic.</span><button type="submit">Save agenda</button></div>
+            <textarea id="ag-text" rows="4" aria-label="Agenda, one item per line with minutes" placeholder="Intro, 8&#10;Roadmap, 16&#10;Budget, 16&#10;Risks, 15"></textarea>
+            <div class="row spread"><span class="small muted">One per line: title, minutes. The chart splits by topic, and you can prepare a question for each topic.</span><button type="submit">Save agenda</button></div>
           </form>
           <div id="ag-list" class="stack small" style="margin-top: 10px"></div>
-        </section>
+        </details>
 
-        <details class="card fold" id="games-fold" data-feature="games" aria-label="Games and automation">
-          <summary><h2>Games and automation</h2><span class="chip" id="games-state"></span></summary>
-
-          <div class="stack">
-            <div class="row">
-              <button id="games-toggle" data-action="games"></button>
-            </div>
-
-            <div>
-              <h3>Game windows</h3>
-              <div id="windows" class="stack" style="margin-top: 8px"></div>
-              <form id="window-form" class="row" style="margin-top: 8px" autocomplete="off">
-                <input id="w-label" type="text" maxlength="40" placeholder="Break block" style="flex: 2; min-width: 110px" aria-label="Window label">
-                <input id="w-start" type="number" min="0" max="600" placeholder="At min" style="flex: 1; min-width: 80px" aria-label="Start minute" required>
-                <input id="w-len" type="number" min="1" max="120" placeholder="For min" style="flex: 1; min-width: 80px" aria-label="Length in minutes" required>
-                <button type="submit">Add</button>
-              </form>
-              <p class="small muted" style="margin-top: 6px">Games open on their own inside a window. Focus moment always pauses them.</p>
-            </div>
-
-            <div>
-              <h3>Prediction</h3>
-              <form id="prediction-form" class="row" style="margin-top: 8px" autocomplete="off">
-                <input id="p-question" class="grow" type="text" maxlength="120" aria-label="Yes/no question">
-                <button type="submit">Set</button>
-              </form>
-              <div class="row" style="margin-top: 8px">
-                <span class="chip" id="p-counts"></span>
-                <span id="p-actions" class="row"></span>
-              </div>
-            </div>
-
-            <details>
-              <summary class="small muted" style="cursor: pointer">Buzzword bingo words</summary>
-              <form id="bingo-form" class="stack" style="margin-top: 8px" autocomplete="off">
-                <textarea id="b-words" rows="6" aria-label="Bingo words, one per line"></textarea>
-                <div class="row spread">
-                  <span class="small muted">One per line, at least 9. Saving resets everyone's cards.</span>
-                  <button type="submit">Save words</button>
-                </div>
-              </form>
-            </details>
-          </div>
-        
-
-        
-          <h2>Quiet mode</h2>
+        <details class="card fold" id="auto-fold" data-feature="ask" aria-label="Automatic pulse check">
+          <summary><h2>Automatic pulse check</h2><span class="chip" id="auto-state">Off</span></summary>
           <div class="stack">
             <label class="check"><input type="checkbox" id="quiet-on"> Run a pulse check automatically</label>
             <div class="row">
@@ -245,10 +190,57 @@
                 <option value="45">45 min</option>
               </select>
             </div>
-            <p class="small muted">Each automatic pulse check is a 1 to 5 question that closes after 45 seconds.</p>
+            <p class="small muted">A 1 to 5 question that closes after 45 seconds. It waits while a prompt or game is running.</p>
           </div>
-        
         </details>
+
+        <section class="card" data-feature="questions" aria-label="Questions from the room">
+          <div class="card-head"><h2>Questions</h2><span class="small muted" id="q-count"></span></div>
+          <div class="q-list" id="questions"></div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="card" data-feature="reactions" aria-label="Reactions">
+          <div class="card-head"><h2>Reactions</h2><span class="chip" id="floor-state">Floor closed</span></div>
+          <p class="small muted" id="floor-note" style="margin: -4px 0 10px">Reactions open only while the floor is open. Each person can send each emoji once per opening.</p>
+          <div class="row" id="floor-controls" style="margin-bottom: 10px">
+            <label for="floor-length" style="margin: 0">Open for</label>
+            <select id="floor-length" style="width: auto">
+              <option value="30">30 seconds</option>
+              <option value="60" selected>1 minute</option>
+              <option value="120">2 minutes</option>
+              <option value="300">5 minutes</option>
+            </select>
+            <button data-action="floor" class="primary" id="floor-open">Open the floor</button>
+            <button data-action="closeFloor" id="floor-close" hidden>Close the floor</button>
+          </div>
+          <p class="small muted" id="floor-counts-label"></p>
+          <div class="reaction-grid" id="reactions"></div>
+        </section>
+
+        <section class="card" id="games-card" data-feature="games" aria-label="Games">
+          <div class="card-head"><h2>Games</h2><span class="small muted">about a minute, everyone at once</span></div>
+          <div id="game-setup" class="stack">
+            <div class="game-picks" id="game-picks" role="radiogroup" aria-label="Choose a game">
+              <button type="button" role="radio" aria-checked="false" data-game-kind="colors"><b>Colour tap</b><span>Tap the colour named</span></button>
+              <button type="button" role="radio" aria-checked="false" data-game-kind="evenodd"><b>Even or odd</b><span>Find the even (or odd) number</span></button>
+              <button type="button" role="radio" aria-checked="false" data-game-kind="maths"><b>Quick maths</b><span>7 + 5 = ?</span></button>
+              <button type="button" role="radio" aria-checked="false" data-game-kind="biggest"><b>Biggest or smallest</b><span>Spot the biggest number</span></button>
+              <button type="button" role="radio" aria-checked="false" data-game-kind="oddone"><b>Odd one out</b><span>Which word does not belong?</span></button>
+              <button type="button" role="radio" aria-checked="true" data-game-kind="mixed"><b>Surprise mix</b><span>A different game each round</span></button>
+            </div>
+            <div class="row">
+              <label for="game-rounds" style="margin: 0">Rounds</label>
+              <select id="game-rounds" style="width: auto"><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option></select>
+              <label for="game-seconds" style="margin: 0">Seconds each</label>
+              <select id="game-seconds" style="width: auto"><option value="5">5</option><option value="8">8</option><option value="10" selected>10</option><option value="15">15</option></select>
+              <button id="game-start" class="primary">Start game</button>
+            </div>
+            <p class="small muted">The game fills everyone's panel. Right and fast answers score more. Scores are private: each person sees only their own, and you see how many got each round right.</p>
+          </div>
+          <div id="game-live" class="stack" hidden></div>
+        </section>
       </div>
     </div>
   </main>

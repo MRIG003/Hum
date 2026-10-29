@@ -245,9 +245,6 @@ label.check input { width: auto; min-height: 0; }
 .moment-options button { text-align: left; }
 .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
 .scale button { font-size: 18px; font-weight: 600; }
-.bingo { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.bingo button { min-height: 58px; font-size: 13px; line-height: 1.2; padding: 6px; }
-.bingo button.on { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); font-weight: 600; }
 .score { display: flex; justify-content: space-between; align-items: baseline; background: var(--surface-2); border-radius: 10px; padding: 10px 14px; }
 .score b { font-size: 24px; }
 .progress { height: 6px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
@@ -309,7 +306,6 @@ body.mini { padding: 0; background: var(--bg); overflow: hidden; }
 .mini-auto { padding: 8px 12px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
 .mini-note { position: absolute; inset: 0; z-index: 2; background: color-mix(in srgb, var(--bg) 94%, transparent); display: grid; align-content: center; gap: 10px; padding: 18px; }
 .mini .react-bar button { padding: 6px 2px; font-size: 10.5px; min-height: 0; }
-.mini .bingo button { min-height: 44px; font-size: 11.5px; }
 
 /* ---------- topics, pinned questions, join screen ---------- */
 .q.pinned { border-color: var(--accent); background: var(--accent-soft); }
@@ -362,7 +358,6 @@ a:hover { text-decoration-thickness: 2px; }
 .steps b { color: var(--text); }
 .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
 
-#games-card.idle #bingo, #games-card.idle #pred-question, #games-card.idle #pred-buttons, #games-card.idle #pred-note { display: none; }
 #games-card.idle h3 { display: none; }
 #games-card.idle .score { margin-top: 10px !important; }
 
@@ -460,3 +455,42 @@ body.embed #ended { padding: 10px 12px 40px; display: grid; gap: 12px; }
 body.embed #ended > .row.spread { flex-wrap: wrap; }
 body.embed .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 body.embed #ended .tile .sub { display: block; font-size: 11px; }
+
+/* ---------- ask the room: Google Forms style options ---------- */
+.option-list { display: grid; gap: 6px; }
+.opt-row { display: grid; grid-template-columns: 22px 1fr 34px; align-items: center; gap: 6px; }
+.opt-row .opt-correct { display: none; width: 18px; height: 18px; margin: 0; accent-color: var(--ok); }
+.opt-row .opt-dot { width: 16px; height: 16px; border: 2px solid var(--border-strong); border-radius: 50%; justify-self: center; }
+.option-list.recall .opt-correct { display: block; justify-self: center; }
+.option-list.recall .opt-dot { display: none; }
+.opt-row .opt-input { border-width: 0 0 1px; border-radius: 0; padding-left: 2px; background: transparent; }
+.opt-row .opt-input:focus { border-bottom: 2px solid var(--accent); outline: none; }
+.opt-row .opt-remove { min-height: 32px; padding: 0; width: 32px; }
+.opt-row .opt-remove:disabled { visibility: hidden; }
+.link-btn { background: none; border: 0; padding: 4px 0; color: var(--accent-text); font-weight: 600; min-height: 0; }
+.link-btn:disabled { color: var(--muted); }
+details.fold > summary { list-style: none; }
+
+/* ---------- games ---------- */
+.game-picks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.game-picks button { display: grid; gap: 2px; text-align: left; padding: 10px 12px; min-height: 58px; }
+.game-picks button span { font-size: 12px; color: var(--muted); font-weight: 400; }
+.game-picks button[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.game-prompt { font-size: 22px; font-weight: 700; margin: 4px 0; }
+.game-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 0; }
+.game-opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.game-opt { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; display: inline-flex; align-items: center; gap: 6px; }
+.game-opt.right { border-color: var(--ok); background: var(--ok-soft); font-weight: 600; }
+.game-opt .swatch { width: 14px; height: 14px; border-radius: 4px; background: var(--swatch); display: inline-block; }
+.game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.game-tile { position: relative; min-height: 76px; font-size: 22px; font-weight: 700; border-radius: 14px; }
+.game-tile.color { background: var(--swatch); color: #fff; border-color: transparent; text-shadow: 0 1px 2px rgba(0, 0, 0, .35); font-size: 15px; }
+.game-tile:disabled { opacity: 1; cursor: default; }
+.game-tile.picked { box-shadow: 0 0 0 3px var(--text); }
+.game-tile.right { box-shadow: 0 0 0 3px var(--ok); }
+.game-tile.wrong { opacity: .55; }
+.game-tile .mark { position: absolute; top: 6px; right: 10px; font-size: 18px; }
+.game-result { font-weight: 700; margin: 0; }
+.game-result.good { color: var(--ok); }
+.react-bar.closed button { opacity: .45; }
+.react-bar button.selected { border-color: var(--ok); background: var(--ok-soft); opacity: 1; }

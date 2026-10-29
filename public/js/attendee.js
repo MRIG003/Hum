@@ -1,5 +1,5 @@
 import { $, $$, codeFromPath, connect, esc, formatClock, REACTION_LABELS, storage, toast } from './common.js';
-import { hasWaiting, momentHtml, resultsHtml } from './views.js';
+import { gameHtml, hasWaiting, momentHtml, reactionsHtml, resultsHtml } from './views.js';
 import { createMini } from './mini.js';
 
 const code = codeFromPath();
@@ -10,6 +10,7 @@ let identity = storage.get(identityKey);
 let state = null;
 let socket = null;
 let momentKey = '';
+let reactionsKey = '';
 let notes = storage.get(notesKey) ?? { text: '', todos: [] };
 let surveyUrl = null;
 let presenting = false;
@@ -136,7 +137,7 @@ function render() {
   renderBanners();
   renderMoment();
   renderQuestions();
-  renderGames();
+  renderReactions();
   renderMiniButton();
   mini.update(state);
   updateTitleBadge();
@@ -210,13 +211,17 @@ function trackPrompting() {
   const m = state.moment;
   const open = Boolean(m && m.status === 'open' && !state.focus);
   const unanswered = open && (m.type === 'wordcloud' ? !(Array.isArray(m.mine) && m.mine.length) : m.mine === null);
-  const prompting = embedded && unanswered && !presenting;
+  const playing = Boolean(state.game && state.game.status !== 'done');
+  const prompting = embedded && (unanswered || playing) && !presenting;
   document.body.classList.toggle('prompting', prompting);
   if (wasPrompting && !prompting) {
     const timedOut = m && m.status === 'closed' && m.mine === null;
-    $('#done-note').innerHTML = timedOut
-      ? "<b>Time's up</b>That prompt has closed. Back to the meeting."
-      : '<b>Thanks, you are done</b>Your answer is in. Back to the meeting.';
+    const g = state.game;
+    $('#done-note').innerHTML = g?.status === 'done'
+      ? `<b>Game over</b>You got ${g.score.correct} of ${g.rounds} right. Back to the meeting.`
+      : timedOut
+        ? "<b>Time's up</b>That prompt has closed. Back to the meeting."
+        : '<b>Thanks, you are done</b>Your answer is in. Back to the meeting.';
     $('#done-note').hidden = false;
     clearTimeout(doneTimer);
     doneTimer = setTimeout(() => { $('#done-note').hidden = true; }, 6000);
@@ -234,19 +239,16 @@ function renderBanners() {
     parts.push(`<div class="banner" role="status"><span><b>Presenting.</b> The mini window is closed and nothing will pop up. ${skipped} ${skipped === 1 ? 'prompt' : 'prompts'} skipped, none queued.</span><button id="presenting-off">Turn off</button></div>`);
   }
   if (state.floorOpen && !state.focus) {
-    parts.push('<div class="banner" role="status"><span><b>The host invites your view</b> on the next topic. Add a question or comment below.</span><button id="floor-go">Write something</button></div>');
-  }
-  if (state.gamesOpen && !state.focus && $('#att-grid').dataset.active !== 'play') {
-    parts.push('<div class="banner" role="status"><span><b>Games are open.</b> The host opened buzzword bingo and the prediction.</span><button id="games-go">Play</button></div>');
+    parts.push('<div class="banner" role="status"><span><b>The floor is open.</b> React below, once with each emoji, or write a question.</span><button id="floor-go">Write something</button></div>');
   }
   $('#banners').innerHTML = parts.join('');
 }
 
 function renderMoment() {
-  const key = JSON.stringify([state.moment, state.focus]);
+  const key = JSON.stringify([state.moment, state.focus, state.game]);
   if (key === momentKey) return;
   momentKey = key;
-  $('#moment').innerHTML = momentHtml(state);
+  $('#moment').innerHTML = state.game ? gameHtml(state) : momentHtml(state);
 }
 
 function renderQuestions() {
@@ -261,37 +263,11 @@ function renderQuestions() {
     : '<p class="muted small">No questions yet. Be the first.</p>';
 }
 
-function renderGames() {
-  const { gamesOpen, focus, card, prediction, windows } = state;
-  const playable = gamesOpen && !focus;
-  $('#games-card').classList.toggle('idle', !playable);
-  const chip = $('#games-chip');
-  chip.textContent = focus ? 'Paused' : gamesOpen ? 'Open' : 'Closed';
-  chip.className = `chip ${playable ? 'ok' : ''}`;
-
-  let note = '';
-  if (focus) note = 'Paused: the host started a Focus moment.';
-  else if (gamesOpen) {
-    note = windows.current
-      ? `Games are open. Tap a word when you hear it. Window ends in `
-      : 'Games are open. Tap a word when you hear it.';
-  } else if (windows.next) {
-    note = 'Games open in ';
-  } else note = 'Games are closed. The host opens them during breaks.';
-  const countdownTarget = gamesOpen && windows.current ? windows.current.endsAt : !gamesOpen && windows.next ? windows.next.startsAt : null;
-  $('#games-note').innerHTML = esc(note) + (countdownTarget && !focus ? `<span class="num" data-countdown="${countdownTarget}"></span>` : '');
-
-  $('#bingo').innerHTML = card.words.map((word, i) =>
-    `<button data-bingo="${esc(word)}" class="${card.marks.includes(i) ? 'on' : ''}" aria-pressed="${card.marks.includes(i)}" ${playable ? '' : 'disabled'}>${esc(word)}</button>`).join('');
-
-  $('#pred-question').textContent = prediction.question;
-  const open = prediction.status === 'open';
-  $('#pred-buttons').innerHTML = ['yes', 'no'].map((choice) =>
-    `<button data-predict="${choice}" class="${prediction.mine === choice ? 'selected' : ''}" ${playable && open ? '' : 'disabled'}>${choice === 'yes' ? 'Yes' : 'No'}</button>`).join('');
-  $('#pred-note').textContent = !open
-    ? `Result: ${prediction.result === 'yes' ? 'Yes' : 'No'}${prediction.mine ? (prediction.mine === prediction.result ? ' · you got it right' : ' · not this time') : ''}`
-    : prediction.mine ? 'Your guess is locked in until the host resolves it.' : '';
-  $('#score').textContent = `${state.me.points} pts`;
+function renderReactions() {
+  const key = JSON.stringify([state.floor, state.focus]);
+  if (key === reactionsKey) return;
+  reactionsKey = key;
+  $('#reactions').innerHTML = reactionsHtml(state, REACTION_LABELS);
 }
 
 // ---- notes (local only) ---------------------------------------------------
@@ -380,7 +356,6 @@ document.addEventListener('click', (event) => {
   const el = event.target.closest('button');
   if (!el) return;
   if (el.id === 'floor-go') return $('#ask-text').focus();
-  if (el.id === 'games-go') return $('[data-tab="play"]').click();
   if (el.id === 'presenting-off') return setPresenting(false);
   if (el.dataset.tab) {
     $('#att-grid').dataset.active = el.dataset.tab;
@@ -391,11 +366,13 @@ document.addEventListener('click', (event) => {
   if (el.dataset.react) {
     act({ t: 'react', kind: el.dataset.react });
     el.classList.add('selected');
-    setTimeout(() => el.classList.remove('selected'), 700);
+    el.disabled = true; // one of each emoji per opening of the floor
+  } else if (el.dataset.gameChoice !== undefined && state.game) {
+    act({ t: 'game', roundId: state.game.roundId, choice: Number(el.dataset.gameChoice) });
+    el.classList.add('picked');
+    for (const b of $$('[data-game-choice]')) b.disabled = true;
   } else if (el.dataset.vote) act({ t: 'upvote', id: el.dataset.vote });
   else if (el.dataset.answer !== undefined) act({ t: 'respond', momentId: state.moment.id, value: el.dataset.answer });
-  else if (el.dataset.bingo) act({ t: 'bingo', word: el.dataset.bingo });
-  else if (el.dataset.predict) act({ t: 'predict', choice: el.dataset.predict });
 });
 
 document.addEventListener('submit', (event) => {
@@ -413,8 +390,5 @@ $('#ask-form').addEventListener('submit', (event) => {
   act({ t: 'ask', text });
   $('#ask-text').value = '';
 });
-
-$('#reactions').innerHTML = Object.entries(REACTION_LABELS).map(([kind, { emoji, label }]) =>
-  `<button data-react="${kind}" aria-label="${esc(label)}"><span class="emoji" aria-hidden="true">${emoji}</span>${esc(label)}</button>`).join('');
 
 start().catch(() => showFatal('Could not reach Engage. Check your connection and reload.'));

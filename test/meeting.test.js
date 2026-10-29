@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { ActionError, Meeting } from '../server/meeting.js';
+import { floorReact } from './helpers.js';
 
 const makeMeeting = () => {
   let now = 1_000_000;
@@ -35,7 +36,7 @@ test('engagement counts connected participants with an action in the last 5 minu
   const a = join(meeting, 'A');
   join(meeting, 'B');
   assert.equal(meeting.engagement().pct, 0);
-  meeting.react(a.id, 'agree');
+  floorReact(meeting, a.id, 'agree');
   assert.equal(meeting.engagement().pct, 50);
   advance(5 * 60_000 + 1);
   assert.equal(meeting.engagement().pct, 0);
@@ -45,21 +46,35 @@ test('disconnected participants are excluded from engagement', () => {
   const { meeting } = makeMeeting();
   const a = join(meeting, 'A');
   const b = join(meeting, 'B');
-  meeting.react(a.id, 'agree');
+  floorReact(meeting, a.id, 'agree');
   meeting.setConnected(b.id, false);
   assert.deepEqual(meeting.engagement(), { connected: 1, active: 1, pct: 100 });
 });
 
-test('reactions are rate limited per kind', () => {
+test('reactions open only with the floor, once per emoji per person, and close with it', () => {
   const { meeting, advance } = makeMeeting();
   const a = join(meeting, 'A');
-  meeting.react(a.id, 'lost');
-  meeting.react(a.id, 'lost');
-  assert.equal(meeting.reactionLog.length, 1);
-  advance(3001);
-  meeting.react(a.id, 'lost');
-  assert.equal(meeting.reactionLog.length, 2);
+  const b = join(meeting, 'B');
+  assert.throws(() => meeting.react(a.id, 'agree'), /opens the floor/);
+  meeting.openTheFloor(60);
+  meeting.react(a.id, 'agree');
+  meeting.react(a.id, 'agree'); // ignored: one of each emoji
+  meeting.react(a.id, 'lost'); // a different emoji is fine
+  meeting.react(b.id, 'agree');
+  assert.equal(meeting.reactionLog.length, 3);
+  assert.deepEqual(meeting.hostSnapshot().floor.counts, { agree: 2, question: 0, lost: 1, fast: 0, move_on: 0 });
+  assert.deepEqual(meeting.attendeeSnapshot(a.id).floor.mine, ['agree', 'lost']);
   assert.throws(() => meeting.react(a.id, 'nope'), ActionError);
+  advance(61_000);
+  meeting.tick();
+  assert.equal(meeting.hostSnapshot().floor.open, false);
+  assert.equal(meeting.hostSnapshot().floor.last.counts.agree, 2, 'the last floor counts stay visible to the host');
+  assert.throws(() => meeting.react(a.id, 'agree'), ActionError);
+  meeting.openTheFloor(30);
+  meeting.react(a.id, 'agree'); // a new opening allows each emoji again
+  assert.equal(meeting.reactionLog.length, 4);
+  meeting.closeTheFloor();
+  assert.equal(meeting.attendeeSnapshot(a.id).floor.open, false);
 });
 
 test('questions: shown with the asker\'s name, upvotes toggle, answered sinks', () => {
@@ -135,64 +150,96 @@ test('moments auto close after their duration', () => {
   assert.equal(meeting.moment.status, 'closed');
 });
 
-test('focus moment pauses responses, bingo and predictions', () => {
+test('focus moment pauses responses and stops a game', () => {
   const { meeting } = makeMeeting();
   const a = join(meeting, 'A');
-  meeting.setGames(true);
   meeting.launchMoment({ type: 'pulse', prompt: 'Check' });
   meeting.setFocus(true);
   assert.throws(() => meeting.respond(a.id, meeting.moment.id, 3), ActionError);
-  assert.throws(() => meeting.markBingo(a.id, a.card[0]), ActionError);
-  assert.throws(() => meeting.predict(a.id, 'yes'), ActionError);
   meeting.setFocus(false);
-  meeting.markBingo(a.id, a.card[0]);
-  assert.equal(a.points, 10);
+  meeting.dismissMoment();
+  meeting.startGame({ kind: 'maths', rounds: 3 });
+  meeting.setFocus(true);
+  assert.equal(meeting.game.status, 'done');
+  meeting.stopGame();
+  assert.throws(() => meeting.startGame({ kind: 'maths' }), /Focus/);
 });
 
-test('games only work while open', () => {
-  const { meeting } = makeMeeting();
-  const a = join(meeting, 'A');
-  assert.throws(() => meeting.markBingo(a.id, a.card[0]), ActionError);
-  assert.throws(() => meeting.predict(a.id, 'no'), ActionError);
-});
-
-test('bingo: a completed line pays a bonus once', () => {
-  const { meeting } = makeMeeting();
-  const a = join(meeting, 'A');
-  meeting.setGames(true);
-  for (const index of [0, 1, 2]) meeting.markBingo(a.id, a.card[index]);
-  assert.equal(a.points, 3 * 10 + 50);
-  meeting.markBingo(a.id, a.card[2]);
-  meeting.markBingo(a.id, a.card[2]);
-  assert.equal(a.points, 3 * 10 + 50);
-  assert.throws(() => meeting.markBingo(a.id, 'not on card'), ActionError);
-});
-
-test('prediction pays correct guesses when resolved', () => {
-  const { meeting } = makeMeeting();
+test('quick game: rounds, scoring for right and fast answers, reveal, then done', () => {
+  const { meeting, advance } = makeMeeting();
   const a = join(meeting, 'A');
   const b = join(meeting, 'B');
-  meeting.setGames(true);
-  meeting.predict(a.id, 'yes');
-  meeting.predict(b.id, 'no');
-  meeting.resolvePrediction('yes');
-  assert.equal(a.points, 5 + 25);
-  assert.equal(b.points, 5);
-  assert.throws(() => meeting.predict(a.id, 'no'), ActionError);
+  meeting.startGame({ kind: 'colors', rounds: 2, roundSec: 10 });
+  const g = meeting.game;
+  assert.equal(g.roundNo, 1);
+  const view = meeting.attendeeSnapshot(a.id).game;
+  assert.equal(view.question.correct, null, 'the answer is hidden while the round is open');
+  assert.equal(view.question.options.length, 4);
+  const right = g.question.correct;
+  const wrong = (right + 1) % 4;
+  advance(2_000);
+  meeting.answerGame(a.id, g.roundId, right);
+  meeting.answerGame(a.id, g.roundId, wrong); // only the first answer counts
+  meeting.answerGame(b.id, g.roundId, wrong);
+  assert.equal(a.points, 100 + 40, '100 for right plus a speed bonus for 8 of 10 seconds left');
+  assert.equal(b.points, 0);
+  meeting.tick(); // everyone answered: reveal straight away
+  assert.equal(g.status, 'reveal');
+  assert.equal(meeting.attendeeSnapshot(b.id).game.question.correct, right);
+  assert.equal(meeting.attendeeSnapshot(b.id).game.mine.correct, false);
+  assert.throws(() => meeting.answerGame(a.id, g.roundId, right), /round is over/);
+  advance(3_100);
+  meeting.tick();
+  assert.equal(g.roundNo, 2);
+  assert.equal(g.status, 'playing');
+  advance(10_001);
+  meeting.tick(); // time up with no answers
+  advance(3_100);
+  meeting.tick();
+  assert.equal(g.status, 'done');
+  assert.deepEqual(meeting.attendeeSnapshot(a.id).game.score, { points: 140, correct: 1, answered: 1 });
+  assert.equal(meeting.hostSnapshot().game.accuracy, 50);
+  assert.equal(meeting.gameLog.length, 1);
+  assert.equal(meeting.gameLog[0].players, 2);
 });
 
-test('game windows open and close games on schedule', () => {
-  const { meeting, advance } = makeMeeting();
+test('quick game: cannot run alongside a prompt, and every game type makes a fair round', async () => {
+  const { meeting } = makeMeeting();
   join(meeting, 'A');
-  meeting.addGameWindow({ startMin: 38, durationMin: 5, label: 'Break block' });
-  meeting.tick();
-  assert.equal(meeting.gamesOpen, false);
-  advance(38 * 60_000);
-  meeting.tick();
-  assert.equal(meeting.gamesOpen, true);
-  advance(5 * 60_000);
-  meeting.tick();
-  assert.equal(meeting.gamesOpen, false);
+  meeting.launchMoment({ type: 'pulse', prompt: 'Check' });
+  assert.throws(() => meeting.startGame({ kind: 'maths' }), /Close the current prompt/);
+  meeting.closeMoment();
+  meeting.startGame({ kind: 'maths' });
+  assert.throws(() => meeting.launchMoment({ type: 'pulse', prompt: 'x' }), /stop the game/);
+  assert.throws(() => meeting.startGame({ kind: 'maths' }), /already running/);
+  meeting.stopGame();
+  meeting.stopGame();
+  assert.equal(meeting.game, null);
+  assert.throws(() => meeting.startGame({ kind: 'chess' }), /Unknown game/);
+
+  const { makeRound, GAME_KINDS } = await import('../server/games.js');
+  for (const kind of GAME_KINDS) {
+    for (let i = 0; i < 200; i++) {
+      const r = makeRound(kind);
+      assert.equal(r.options.length, 4, kind);
+      assert.equal(new Set(r.options.map((o) => o.label)).size, 4, `${kind}: options are distinct`);
+      assert.ok(r.correct >= 0 && r.correct < 4, kind);
+      const labels = r.options.map((o) => Number(o.label));
+      const pick = labels[r.correct];
+      if (r.kind === 'evenodd') {
+        const wantEven = /even/.test(r.prompt);
+        assert.equal(labels.filter((n) => (n % 2 === 0) === wantEven).length, 1, 'exactly one right answer');
+        assert.equal(pick % 2 === 0, wantEven);
+      }
+      if (r.kind === 'biggest') assert.equal(pick, /biggest/.test(r.prompt) ? Math.max(...labels) : Math.min(...labels));
+      if (r.kind === 'maths') {
+        const [, x, op, y] = r.prompt.match(/(\d+) (.) (\d+)/);
+        const value = op === '+' ? +x + +y : op === '×' ? x * y : x - y;
+        assert.equal(pick, value);
+      }
+      if (r.kind === 'colors') assert.equal(r.options[r.correct].label.toUpperCase(), r.prompt.replace('Tap ', ''));
+    }
+  }
 });
 
 test('quiet mode launches an automatic pulse check', () => {
@@ -211,7 +258,7 @@ test('quiet mode launches an automatic pulse check', () => {
 test('a participation dip produces a host suggestion and a chart band', () => {
   const { meeting, advance } = makeMeeting();
   const people = Array.from({ length: 5 }, (_, i) => join(meeting, `P${i}`));
-  for (const p of people) meeting.react(p.id, 'agree');
+  for (const p of people) floorReact(meeting, p.id, 'agree');
   for (let i = 0; i < 4; i++) {
     meeting.tick();
     advance(31_000);
@@ -229,8 +276,8 @@ test('a participation dip produces a host suggestion and a chart band', () => {
 test('lost-me spike produces a confusion suggestion', () => {
   const { meeting } = makeMeeting();
   const people = Array.from({ length: 4 }, (_, i) => join(meeting, `P${i}`));
-  meeting.react(people[0].id, 'lost');
-  meeting.react(people[1].id, 'fast');
+  floorReact(meeting, people[0].id, 'lost');
+  floorReact(meeting, people[1].id, 'fast');
   assert.ok(meeting.suggestions().some((s) => s.id === 'confused'));
 });
 
@@ -253,13 +300,13 @@ test('attendee snapshots never include other people\'s points or choices', () =>
   const { meeting } = makeMeeting();
   const a = join(meeting, 'A');
   const b = join(meeting, 'B');
-  meeting.setGames(true);
-  meeting.predict(a.id, 'yes');
-  meeting.markBingo(a.id, a.card[0]);
+  meeting.startGame({ kind: 'maths', rounds: 1 });
+  meeting.answerGame(a.id, meeting.game.roundId, meeting.game.question.correct);
   const view = meeting.attendeeSnapshot(b.id);
   assert.equal(view.me.points, 0);
-  assert.equal(view.prediction.mine, null);
-  assert.deepEqual(view.card.marks, []);
+  assert.equal(view.game.mine, null);
+  assert.deepEqual(view.game.score, { points: 0, correct: 0, answered: 0 });
+  assert.ok(!JSON.stringify(view).includes(a.id));
 });
 
 // ---- recall check, agenda, coach -------------------------------------------
@@ -338,7 +385,7 @@ test('agenda: per-segment engagement stats and attendee view of the current segm
   const { meeting, advance } = makeMeeting();
   const people = Array.from({ length: 4 }, (_, i) => join(meeting, `P${i}`));
   meeting.setAgenda('Intro, 5\nBudget, 10');
-  for (const p of people) meeting.react(p.id, 'agree');
+  for (const p of people) floorReact(meeting, p.id, 'agree');
   meeting.tick();
   advance(6 * 60_000);
   meeting.tick();
@@ -352,7 +399,7 @@ test('dip suggestion names the agenda segment and offers a recall check', () => 
   const { meeting, advance } = makeMeeting();
   const people = Array.from({ length: 5 }, (_, i) => join(meeting, `P${i}`));
   meeting.setAgenda('Intro, 3\nBudget, 30');
-  for (const p of people) meeting.react(p.id, 'agree');
+  for (const p of people) floorReact(meeting, p.id, 'agree');
   for (let i = 0; i < 4; i++) { meeting.tick(); advance(31_000); }
   advance(5 * 60_000);
   meeting.tick();
@@ -365,7 +412,7 @@ test('coach summary: dip, recovery, recall result, open questions, next step', (
   const { meeting, advance } = makeMeeting();
   const people = Array.from({ length: 8 }, (_, i) => join(meeting, `P${i}`));
   meeting.setAgenda('Intro, 4\nBudget, 40');
-  for (const p of people) meeting.react(p.id, 'agree');
+  for (const p of people) floorReact(meeting, p.id, 'agree');
   for (let i = 0; i < 4; i++) { meeting.tick(); advance(31_000); }
   advance(6 * 60_000);
   meeting.tick();
@@ -392,7 +439,7 @@ test('coach summary: dip, recovery, recall result, open questions, next step', (
 test('coach summary is calm for a healthy meeting', () => {
   const { meeting } = makeMeeting();
   const people = Array.from({ length: 6 }, (_, i) => join(meeting, `P${i}`));
-  for (const p of people) meeting.react(p.id, 'agree');
+  for (const p of people) floorReact(meeting, p.id, 'agree');
   meeting.tick();
   meeting.end();
   const coach = meeting.hostSnapshot().summary.coach;
