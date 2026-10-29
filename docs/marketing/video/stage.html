@@ -1,0 +1,63 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Engage tutorial</title>
+<style>
+@font-face{font-family:Inter;src:local('Inter')}
+*{box-sizing:border-box}
+html,body{margin:0;width:1920px;height:1080px;overflow:hidden;background:#eef0f8;font-family:Inter,system-ui,sans-serif;color:#13142b}
+.top{position:absolute;left:48px;right:48px;top:28px;height:64px;display:flex;align-items:center;gap:16px}
+.logo{width:44px;height:44px}
+.brand{font-weight:700;font-size:28px;letter-spacing:-.02em}
+.tag{margin-left:auto;font-size:18px;color:#5d6083}
+.steps{position:absolute;left:48px;top:116px;width:360px;height:820px;background:#fff;border-radius:20px;padding:26px 22px;box-shadow:0 8px 28px -16px rgba(19,20,43,.25)}
+.steps h3{margin:0 0 14px;font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:#5d6083}
+.step{display:flex;gap:14px;align-items:flex-start;padding:11px 12px;border-radius:12px;margin-bottom:4px;font-size:19px;color:#8e92b3;transition:all .35s}
+.step b{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:15px;background:#f0f1f8;color:#8e92b3;transition:all .35s}
+.step.done{color:#13142b}.step.done b{background:#dcf5e9;color:#0c7d4d}
+.step.on{background:#ecebff;color:#3a31c2;font-weight:600}.step.on b{background:linear-gradient(135deg,#4f46e5,#8b3dff);color:#fff}
+.col{position:absolute;top:116px;height:820px}
+.col .lab{height:34px;font-size:17px;font-weight:600;display:flex;gap:8px;align-items:center}
+.col .lab span{font-weight:400;color:#5d6083}
+.col iframe{width:100%;height:786px;border:0;border-radius:18px;background:#fff;box-shadow:0 10px 30px -14px rgba(19,20,43,.35)}
+.col.hl iframe{outline:4px solid #8b3dff;outline-offset:3px}
+#c-host{left:440px;width:500px}#c-p1{left:972px;width:430px}#c-p2{left:1434px;width:430px}
+.cap{position:absolute;left:440px;right:56px;top:952px;height:104px;background:#13142b;color:#fff;border-radius:20px;padding:18px 28px;display:flex;flex-direction:column;justify-content:center;transition:opacity .3s}
+.cap .t{font-size:30px;font-weight:700;letter-spacing:-.01em}
+.cap .s{font-size:21px;color:#c9cbe6;margin-top:4px}
+.cap .t i{font-style:normal;background:linear-gradient(135deg,#8f88ff,#c49bff);-webkit-background-clip:text;color:transparent}
+.foot{position:absolute;left:48px;top:952px;width:360px;height:104px;border-radius:20px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:18px;color:#5d6083;box-shadow:0 8px 28px -16px rgba(19,20,43,.25)}
+.foot strong{color:#4f46e5;font-size:22px}
+#cursor{position:absolute;left:0;top:0;width:30px;height:30px;z-index:50;pointer-events:none;transition:transform .7s cubic-bezier(.4,0,.2,1);transform:translate(1700px,1000px)}
+#cursor svg{filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))}
+.ripple{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:3px solid #8b3dff;z-index:49;pointer-events:none;animation:rp .6s ease-out forwards}
+@keyframes rp{from{transform:scale(.3);opacity:1}to{transform:scale(1.4);opacity:0}}
+.card{position:absolute;inset:0;z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;background:radial-gradient(1200px 700px at 50% 40%,#2a2470 0%,#13142b 70%);color:#fff;transition:opacity .8s}
+.card.hide{opacity:0;pointer-events:none}
+.card img{width:150px;height:150px;margin-bottom:34px;filter:drop-shadow(0 18px 40px rgba(139,61,255,.45))}
+.card h1{font-size:76px;margin:0;letter-spacing:-.03em}
+.card h2{font-size:38px;font-weight:500;margin:22px 0 0;color:#c9cbe6}
+.card p{font-size:26px;color:#9ea2c9;margin:42px 0 0}
+.card .grad{background:linear-gradient(135deg,#8f88ff,#c49bff);-webkit-background-clip:text;color:transparent}
+.card .pill{margin-top:36px;padding:14px 30px;border-radius:999px;background:linear-gradient(135deg,#4f46e5,#8b3dff);font-size:28px;font-weight:600}
+.card small{position:absolute;bottom:34px;font-size:17px;color:#6f739c}
+</style></head><body>
+<div class="top"><img class="logo" src="/img/logo.png"><div class="brand">Engage</div><div class="tag">How to run a meeting with Engage · real product, live demo meeting</div></div>
+<div class="steps"><h3>Steps</h3><div id="steps"></div></div>
+<div class="col" id="c-host"><div class="lab">Host <span>· your side panel</span></div><iframe id="f-host"></iframe></div>
+<div class="col" id="c-p1"><div class="lab">Participant <span>· Mei's panel</span></div><iframe id="f-p1"></iframe></div>
+<div class="col" id="c-p2"><div class="lab">Participant <span>· Sam's panel</span></div><iframe id="f-p2"></iframe></div>
+<div class="foot"><span>Free for Google Meet™</span><strong>engage.neuronlab.in</strong></div>
+<div class="cap" id="cap"><div class="t" id="cap-t"></div><div class="s" id="cap-s"></div></div>
+<div id="cursor"><svg width="30" height="30" viewBox="0 0 24 24"><path d="M4 2l16 10-7 1.5L9.5 21z" fill="#13142b" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
+<div class="card" id="intro"><img src="/img/logo-512.png"><h1>How to run a meeting with <span class="grad">Engage</span></h1><h2>Every voice in the meeting, not just the loudest few.</h2><p>A 3-minute walkthrough of the real product</p></div>
+<div class="card hide" id="outro"><img src="/img/logo-512.png"><h1>Every voice in the meeting.</h1><h2>Polls, questions, reactions, quick games and a coach summary,<br>right in the Google Meet™ side panel.</h2><div class="pill">engage.neuronlab.in</div><p>Free for Google Meet™ · No accounts for participants · Nothing recorded</p><small>Google Meet™ is a trademark of Google LLC. Zoom, Microsoft Teams and Zoho Meeting are trademarks of their respective owners.</small></div>
+<script>
+const STEPS=["Start Engage","Invite everyone","Ask the room","Check the point landed","Take questions","Open the floor","Wake the room up","See who has gone quiet","Focus moment","End and read the coach summary"];
+document.getElementById('steps').innerHTML=STEPS.map((s,i)=>`<div class="step" id="st${i}"><b>${i+1}</b><div>${s}</div></div>`).join('');
+window.setStep=(n)=>STEPS.forEach((_,i)=>{const e=document.getElementById('st'+i);e.className='step'+(i<n?' done':i===n?' on':'')});
+window.cap=(t,s)=>{document.getElementById('cap-t').innerHTML=t;document.getElementById('cap-s').innerHTML=s||''};
+window.hl=(id)=>document.querySelectorAll('.col').forEach(c=>c.classList.toggle('hl',c.id===id));
+window.moveCursor=(x,y)=>{document.getElementById('cursor').style.transform=`translate(${x-4}px,${y-3}px)`};
+window.ripple=(x,y)=>{const r=document.createElement('div');r.className='ripple';r.style.left=x+'px';r.style.top=y+'px';document.body.appendChild(r);setTimeout(()=>r.remove(),700)};
+window.card=(id,show)=>document.getElementById(id).classList.toggle('hide',!show);
+// The host panel asks its parent for the Meet add-on connection; there is none here.
+addEventListener('message',(e)=>{const m=e.data;if(e.origin!==location.origin||m?.engage!=='rpc')return;e.source.postMessage({engage:'rpc-result',id:m.id,ok:true,ready:false},location.origin)});
+</script></body></html>
