@@ -3,68 +3,219 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Engage: see who has gone quiet in your Google Meet</title>
-  <meta name="description" content="Engage is a Google Meet side-panel add-on. Run quick polls, recall checks and Q&amp;A, and see live who has gone quiet, so no one is lost in a long session. Free to try in your browser.">
+  <title>Engage: every voice in your Google Meet</title>
+  <meta name="description" content="Engage is a Google Meet side-panel add-on. Launch a poll in one tap, check the point landed, play a one-minute game, and see live who has gone quiet. Try it in your browser.">
   <link rel="canonical" href="__BASE__/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Engage">
-  <meta property="og:title" content="Engage: see who has gone quiet in your Google Meet">
-  <meta property="og:description" content="Polls, recall checks and Q&amp;A in the Meet side panel, plus a live view of who has stopped taking part. Try it in your browser.">
+  <meta property="og:title" content="Engage: every voice in your Google Meet">
+  <meta property="og:description" content="Polls, recall checks, quick games and Q&amp;A in the Meet side panel, plus a live view of who has stopped taking part.">
   <meta property="og:url" content="__BASE__/">
   <meta property="og:image" content="__BASE__/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Engage: see who has gone quiet in your Google Meet">
-  <meta name="twitter:description" content="Polls, recall checks and Q&amp;A in the Meet side panel, plus a live view of who has stopped taking part.">
+  <meta name="twitter:title" content="Engage: every voice in your Google Meet">
+  <meta name="twitter:description" content="Polls, recall checks, quick games and Q&amp;A in the Meet side panel, plus a live view of who has stopped taking part.">
   <meta name="twitter:image" content="__BASE__/og.png">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/styles.css">
+  <link rel="stylesheet" href="/css/landing.css">
 </head>
-<body>
-  <main class="landing">
-    <header class="row spread">
-      <span class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</span>
-      <a id="account" class="small" href="/login">Host sign in</a>
-    </header>
+<body class="lp">
+  <div class="lp-bg" aria-hidden="true"><span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span></div>
 
-    <div class="landing-grid">
-      <section class="hero">
-        <h1>See who has gone quiet in your meeting, while it is still running.</h1>
-        <p>Engage runs in the Google Meet™ side panel. Ask a quick poll, check that the point landed, take questions, and watch who has stopped taking part. Also works beside Zoom, Teams and Zoho with one link.</p>
+  <header class="lp-nav">
+    <a href="/" class="brand"><span class="brand-mark" aria-hidden="true"></span>Engage</a>
+    <nav aria-label="Main">
+      <a href="#features">Features</a>
+      <a href="#demo">Play with it</a>
+      <a href="#screens">Screens</a>
+      <a href="#how">How it works</a>
+    </nav>
+    <div class="row">
+      <a id="account" class="lp-link" href="/login">Host sign in</a>
+      <a class="button-like primary" href="/try">Live demo</a>
+    </div>
+  </header>
+
+  <main>
+    <!-- ---------------- hero ---------------- -->
+    <section class="hero-3d">
+      <div class="hero-copy">
+        <span class="eyebrow"><span class="dot"></span>Google Meet&trade; add-on</span>
+        <h1>Every voice in the meeting, <span class="grad">not just the loudest few.</span></h1>
+        <p class="lede">Engage lives in the Meet side panel. Launch a poll in one tap, check the point landed, play a one-minute game, and see live who has gone quiet.</p>
         <div class="cta-row">
-          <a class="button-like primary" href="/try">Try the live demo</a>
-          <a class="button-like" href="#start">Start a meeting</a>
+          <a class="button-like primary big" href="/try">Try the live demo</a>
+          <a class="button-like big" href="#start">Start a meeting</a>
         </div>
-        <ul class="bullets">
-          <li>Reactions, questions and quick polls that take seconds</li>
-          <li>A host view of the room's mood, with names of anyone who has gone quiet</li>
-          <li>Optional light games, always paused with one click</li>
+        <ul class="trust">
+          <li>No sign-up for participants</li>
+          <li>No audio, video or screen recorded</li>
+          <li>Works beside Zoom, Teams and Zoho too</li>
         </ul>
-        <ol class="steps" aria-label="How it works">
-          <li><b>Start a meeting.</b> Add an agenda if you have one.</li>
-          <li><b>Paste the link in your meeting chat.</b> Attendees open it in a second window.</li>
-          <li><b>Watch engagement over time.</b> Engage suggests what to do when it dips.</li>
-        </ol>
-        <section class="why" aria-label="Why Engage">
-          <h2>What Engage adds to polls and Q&amp;A</h2>
-          <table class="compare">
-            <thead><tr><th></th><th>Typical poll and Q&amp;A tools</th><th>Engage</th></tr></thead>
-            <tbody>
-              <tr><th scope="row">Who has stopped taking part</th><td>Often only totals per question</td><td class="yes">Live list of quiet people, with per-person detail</td></tr>
-              <tr><th scope="row">Did the point land?</th><td>Not a built-in idea</td><td class="yes">Recall check, with a "Missed that" answer</td></tr>
-              <tr><th scope="row">How the room is doing</th><td>After the session, if at all</td><td class="yes">Engagement over time, with a suggestion when it dips</td></tr>
-              <tr><th scope="row">Where it runs</th><td>A separate site or tab</td><td class="yes">Inside the Meet side panel</td></tr>
-              <tr><th scope="row">What it records</th><td>Varies</td><td class="yes">Only actions inside Engage. No audio, video or screen</td></tr>
-            </tbody>
-          </table>
-        </section>
-        <div class="pills" aria-label="Principles"><span class="chip">Calm: no sound, no pop-ups over your screen</span><span class="chip">Transparent: everyone is told what the host can see</span></div>
-      </section>
+      </div>
 
-      <div class="stack">
-        <form id="create" class="card stack" autocomplete="off" aria-labelledby="start">
-          <h2 id="start">Start a meeting</h2>
+      <div class="stage" id="stage" aria-hidden="true">
+        <div class="scene" id="scene">
+          <div class="meet-window layer" style="--z: 0px">
+            <div class="mw-top"><span></span><span></span><span></span><b>Weekly product review</b></div>
+            <div class="mw-grid">
+              <div class="tile-v" style="--c1:#6d5dfc;--c2:#a27bff"><i>P</i><small>Priya Sharma</small></div>
+              <div class="tile-v" style="--c1:#0ea47a;--c2:#4fd1a5"><i>D</i><small>Dev Patel</small></div>
+              <div class="tile-v" style="--c1:#e5603a;--c2:#ff9b6b"><i>M</i><small>Mei Chen</small></div>
+              <div class="tile-v" style="--c1:#2e7de9;--c2:#6fb2ff"><i>S</i><small>Sam Okafor</small></div>
+            </div>
+            <div class="mw-bar"><span></span><span></span><b>Activities &rsaquo; Engage</b><span class="end"></span></div>
+          </div>
+          <img class="layer phone p-host" style="--z: 90px" src="/img/shots/host-results.png" alt="" width="380" height="720">
+          <img class="layer phone p-part" style="--z: 150px" src="/img/shots/participant-game-right.png" alt="" width="380" height="720">
+          <div class="layer bubble b1" style="--z: 210px"><span class="av">M</span><span><b>Mei Chen</b> has been quiet for 14 min</span></div>
+          <div class="layer bubble b2" style="--z: 240px"><span class="ok">✓</span><span><b>Right!</b> +147 points</span></div>
+          <div class="layer bubble b3" style="--z: 190px"><span class="pct">83%</span><span>room engagement</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stats" aria-label="At a glance">
+      <div><b data-count="1">1</b><span>tap to launch a poll</span></div>
+      <div><b data-count="4">4</b><span>ways to ask the room</span></div>
+      <div><b data-count="5">5</b><span>one-minute games</span></div>
+      <div><b data-count="0">0</b><span>accounts needed by participants</span></div>
+    </section>
+
+    <!-- ---------------- features ---------------- -->
+    <section class="lp-section" id="features">
+      <div class="section-head">
+        <span class="eyebrow">Why hosts use Engage</span>
+        <h2>Run meetings people actually take part in</h2>
+        <p>Everything sits in the Meet side panel, one tool at a time, so it never gets in the way of the call.</p>
+      </div>
+      <div class="features">
+        <article class="feature tilt">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg></span>
+          <h3>Ask the room in one tap</h3>
+          <p>Polls, pulse checks, recall checks and word clouds, with ready-made questions you can edit. Results fill in live.</p>
+        </article>
+        <article class="feature tilt">
+          <span class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M17 7.5l4 4M21 7.5l-4 4"/></svg></span>
+          <h3>See who has gone quiet</h3>
+          <p>Names and minutes since they last took part, while the meeting is still running. Select a person for their detail.</p>
+        </article>
+        <article class="feature tilt">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M5 12.5l4 4L19 6.5"/><circle cx="12" cy="12" r="10"/></svg></span>
+          <h3>Check the point landed</h3>
+          <p>A recall check asks about what was just said, with an honest "Missed that" option, so you know before moving on.</p>
+        </article>
+        <article class="feature tilt">
+          <span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg></span>
+          <h3>Wake the room up</h3>
+          <p>One-minute games everyone plays at once: colour tap, quick maths, odd one out and more. Scores stay private.</p>
+        </article>
+        <article class="feature tilt">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></svg></span>
+          <h3>A coach summary after every meeting</h3>
+          <p>When engagement dipped, what is still open, and one thing to try next time. In the panel and in your inbox.</p>
+        </article>
+        <article class="feature tilt">
+          <span class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 4.5-3.4 8-8 9-4.6-1-8-4.5-8-9V6z"/></svg></span>
+          <h3>Private by design</h3>
+          <p>Engage only counts what people do inside Engage. No audio, video or screen. Participants see exactly what the host can see.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ---------------- interactive demo ---------------- -->
+    <section class="lp-section demo-band" id="demo">
+      <div class="demo-grid">
+        <div class="section-head left">
+          <span class="eyebrow">Play with it</span>
+          <h2>This is what your participants see</h2>
+          <p>Tap around. In a real meeting the host launches these from their panel, and every person's panel updates at the same moment.</p>
+          <div class="demo-switch" role="tablist" aria-label="Demo">
+            <button role="tab" aria-selected="true" data-demo="poll">Answer a poll</button>
+            <button role="tab" aria-selected="false" data-demo="react">React on the floor</button>
+            <button role="tab" aria-selected="false" data-demo="game">Play a game</button>
+          </div>
+          <p class="small muted" id="demo-caption">Pick an answer and watch the room's results come in.</p>
+        </div>
+        <div class="demo-stage tilt-soft">
+          <div class="demo-phone" id="demo-phone">
+            <div class="dp-head"><span class="brand-mark" aria-hidden="true"></span><b>Engage</b><span class="dp-title">Weekly product review</span></div>
+            <div class="dp-body" id="demo-body" aria-live="polite"></div>
+            <div class="burst" id="burst" aria-hidden="true"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------------- screenshots ---------------- -->
+    <section class="lp-section" id="screens">
+      <div class="section-head">
+        <span class="eyebrow">See it in action</span>
+        <h2>Real screens from a real meeting</h2>
+      </div>
+      <div class="screen-tabs" role="tablist" aria-label="Screens">
+        <button role="tab" aria-selected="true" data-set="host">For the host</button>
+        <button role="tab" aria-selected="false" data-set="people">For participants</button>
+      </div>
+      <div class="screens" data-set="host">
+        <figure class="tilt"><img src="/img/shots/host-ask.png" alt="Ask the room with a ready-made question and editable options" loading="lazy" width="380" height="720"><figcaption><b>Ask the room</b>Ready-made questions, Google Forms style options</figcaption></figure>
+        <figure class="tilt"><img src="/img/shots/host-results.png" alt="Live poll results in the host panel" loading="lazy" width="380" height="720"><figcaption><b>Live results</b>Answers fill in as people tap</figcaption></figure>
+        <figure class="tilt"><img src="/img/shots/host-quiet.png" alt="Who has been quiet, with names and minutes" loading="lazy" width="380" height="720"><figcaption><b>Who has been quiet</b>Names and minutes, live</figcaption></figure>
+        <figure class="tilt"><img src="/img/shots/host-coach.png" alt="The coach summary after the meeting" loading="lazy" width="380" height="720"><figcaption><b>Coach summary</b>What happened, and what to try next</figcaption></figure>
+      </div>
+      <div class="screens" data-set="people" hidden>
+        <figure class="tilt"><img src="/img/shots/participant-poll.png" alt="A poll filling the participant panel" loading="lazy" width="380" height="720"><figcaption><b>One question at a time</b>The prompt fills the panel, then gets out of the way</figcaption></figure>
+        <figure class="tilt"><img src="/img/shots/participant-floor.png" alt="Reactions while the floor is open" loading="lazy" width="380" height="720"><figcaption><b>Open floor reactions</b>One of each emoji, while the floor is open</figcaption></figure>
+        <figure class="tilt"><img src="/img/shots/participant-game.png" alt="Colour tap game" loading="lazy" width="380" height="720"><figcaption><b>Quick games</b>Everyone plays the same round at once</figcaption></figure>
+        <figure class="tilt"><img src="/img/shots/participant-game-right.png" alt="A right answer in the game" loading="lazy" width="380" height="720"><figcaption><b>Private scores</b>You see your score. Nobody is ranked</figcaption></figure>
+      </div>
+    </section>
+
+    <!-- ---------------- how it works ---------------- -->
+    <section class="lp-section" id="how">
+      <div class="section-head">
+        <span class="eyebrow">How it works</span>
+        <h2>Up and running in under a minute</h2>
+      </div>
+      <ol class="steps3">
+        <li><span class="n">1</span><h3>Open Engage in Meet</h3><p>In your call, choose Activities, then Engage, and press Start Engage.</p></li>
+        <li><span class="n">2</span><h3>Everyone gets the panel</h3><p>Invite the call with one button. People join with their name. No accounts.</p></li>
+        <li><span class="n">3</span><h3>Ask, react, play</h3><p>Pick a tool, launch, and watch the room respond. End with a coach summary.</p></li>
+      </ol>
+    </section>
+
+    <section class="lp-section" aria-label="Compared with other tools">
+      <div class="section-head">
+        <span class="eyebrow">What is different</span>
+        <h2>More than polls and Q&amp;A</h2>
+      </div>
+      <div class="card compare-card">
+        <table class="compare">
+          <thead><tr><th></th><th>Typical poll and Q&amp;A tools</th><th>Engage</th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Who has stopped taking part</th><td>Often only totals per question</td><td class="yes">Live list of quiet people, with per-person detail</td></tr>
+            <tr><th scope="row">Did the point land?</th><td>Not a built-in idea</td><td class="yes">Recall check, with a "Missed that" answer</td></tr>
+            <tr><th scope="row">Energy dips</th><td>Not covered</td><td class="yes">One-minute games everyone plays at once</td></tr>
+            <tr><th scope="row">After the meeting</th><td>Raw results, if any</td><td class="yes">A coach summary with one thing to try next time</td></tr>
+            <tr><th scope="row">Where it runs</th><td>A separate site or tab</td><td class="yes">Inside the Meet side panel</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ---------------- start ---------------- -->
+    <section class="lp-section start" id="start">
+      <div class="section-head">
+        <span class="eyebrow">Start now</span>
+        <h2>Using Zoom, Teams or another tool?</h2>
+        <p>Start a meeting here and share the link in your meeting chat. In Google Meet, open Engage from Activities instead.</p>
+      </div>
+      <div class="start-grid">
+        <form id="create" class="card stack" autocomplete="off" aria-labelledby="start-title">
+          <h3 id="start-title" class="card-title">Start a meeting</h3>
           <div>
             <label for="title">Meeting title</label>
             <input id="title" type="text" maxlength="80" placeholder="Q3 roadmap review" required>
@@ -72,7 +223,7 @@
           <div>
             <label for="platform">Where is your meeting?</label>
             <select id="platform">
-              <option value="meet">Google Meet™</option>
+              <option value="meet">Google Meet&trade;</option>
               <option value="zoom">Zoom</option>
               <option value="teams">Microsoft Teams</option>
               <option value="zoho">Zoho Meeting</option>
@@ -80,29 +231,51 @@
             </select>
             <p class="small muted" id="platform-note" style="margin-top: 6px"></p>
           </div>
-          <div>
-            <label for="expected">Expected attendees (optional)</label>
-            <input id="expected" type="number" min="0" max="1000" placeholder="14">
+          <div class="row">
+            <div class="grow">
+              <label for="expected">Expected attendees (optional)</label>
+              <input id="expected" type="number" min="0" max="1000" placeholder="14">
+            </div>
           </div>
           <div>
             <label for="agenda">Agenda (optional, one topic per line with minutes)</label>
-            <textarea id="agenda" rows="4" placeholder="Intro, 8&#10;Roadmap, 16&#10;Budget, 16"></textarea>
+            <textarea id="agenda" rows="3" placeholder="Intro, 8&#10;Roadmap, 16&#10;Budget, 16"></textarea>
           </div>
           <p id="create-error" class="small" style="color: var(--bad)" role="alert" hidden></p>
           <button class="primary" type="submit">Create meeting</button>
         </form>
 
-        <form id="join" class="card stack" autocomplete="off">
-          <h2>Join with a code</h2>
-          <div class="row">
-            <input id="code" class="grow" type="text" maxlength="6" placeholder="ABC123" aria-label="Meeting code" style="text-transform: uppercase">
-            <button type="submit">Join</button>
+        <div class="stack">
+          <form id="join" class="card stack" autocomplete="off">
+            <h3 class="card-title">Join with a code</h3>
+            <div class="row">
+              <input id="code" class="grow" type="text" maxlength="6" placeholder="ABC123" aria-label="Meeting code" style="text-transform: uppercase">
+              <button type="submit">Join</button>
+            </div>
+          </form>
+          <div class="card faq">
+            <h3 class="card-title">Questions</h3>
+            <details><summary>Do participants need to install anything?</summary><p>In Google Meet they open Engage from Activities. Anyone can also join with the link in a browser. Participants never need an account.</p></details>
+            <details><summary>Is anything recorded?</summary><p>No audio, video, screen or transcript. Engage only sees what people do inside Engage, such as answering a poll or sending a reaction.</p></details>
+            <details><summary>Who sees who has been quiet?</summary><p>Only the host. Participants are told exactly what the host can see before they join.</p></details>
+            <details><summary>Are game scores shared?</summary><p>No. Each person sees only their own score. The host sees how many people got each round right, never who.</p></details>
           </div>
-        </form>
+        </div>
       </div>
-    </div>
-    <footer class="small muted"><a href="/try">Live demo</a> · <a href="/privacy.html">How Engage handles data</a> · <a href="/terms.html">Terms</a> · <a href="/support.html">Support</a><br>Google Meet™ is a trademark of Google LLC. Zoom, Microsoft Teams and Zoho Meeting are trademarks of their respective owners.</footer>
+    </section>
+
+    <section class="final-cta">
+      <h2>See it for yourself in 30 seconds</h2>
+      <p>Be the host and a participant at the same time. No Meet call, no sign-up.</p>
+      <a class="button-like big light" href="/try">Open the live demo</a>
+    </section>
   </main>
+
+  <footer class="lp-footer small muted">
+    <div><a href="/try">Live demo</a> · <a href="/privacy.html">How Engage handles data</a> · <a href="/terms.html">Terms</a> · <a href="/support.html">Support</a></div>
+    <div>Google Meet&trade; is a trademark of Google LLC. Zoom, Microsoft Teams and Zoho Meeting are trademarks of their respective owners.</div>
+  </footer>
   <script type="module" src="/js/index.js"></script>
+  <script type="module" src="/js/landing.js"></script>
 </body>
 </html>

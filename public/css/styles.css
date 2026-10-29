@@ -1,45 +1,49 @@
 :root {
-  --bg: #f6f6f3;
+  --bg: #f5f6fb;
   --surface: #ffffff;
-  --surface-2: #f2f2ee;
-  --border: #e4e3dc;
-  --text: #1c1c1a;
-  --muted: #6a6963;
-  --accent: #2563c9;
-  --accent-soft: #dde9fb;
-  --accent-text: #123e86;
+  --surface-2: #f0f1f8;
+  --border: #e3e5f0;
+  --text: #13142b;
+  --muted: #5d6083;
+  --accent: #4f46e5;
+  --accent-2: #8b3dff;
+  --accent-soft: #ecebff;
+  --accent-text: #3a31c2;
   --on-accent: #ffffff;
-  --border-strong: #85847d;
-  --ok: #1a6f40;
-  --ok-soft: #d8f0e1;
-  --warn: #8a5a00;
-  --warn-soft: #fbecc8;
-  --bad: #a3322a;
-  --bad-soft: #f8dcd8;
-  --radius: 12px;
-  --shadow: 0 1px 2px rgba(20, 20, 10, 0.05);
+  --border-strong: #8e92b3;
+  --ok: #0c7d4d;
+  --ok-soft: #dcf5e9;
+  --warn: #9a5800;
+  --warn-soft: #fff1d6;
+  --bad: #c0352e;
+  --bad-soft: #fde4e2;
+  --radius: 16px;
+  --shadow: 0 1px 2px rgba(19, 20, 43, 0.04), 0 8px 24px -14px rgba(19, 20, 43, 0.18);
+  --gradient: linear-gradient(135deg, #4f46e5 0%, #8b3dff 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #151514;
-    --surface: #1e1e1c;
-    --surface-2: #272725;
-    --border: #353532;
-    --text: #efefea;
-    --muted: #a3a29a;
-    --accent: #6ea2ff;
-    --accent-soft: #1e3050;
-    --accent-text: #bcd3ff;
-    --on-accent: #0b1f44;
-    --border-strong: #74746d;
-    --ok: #6fd69a;
-    --ok-soft: #173826;
-    --warn: #f0c25a;
-    --warn-soft: #3a2f12;
-    --bad: #ff9d93;
-    --bad-soft: #43201c;
-    --shadow: none;
+    --bg: #0e0f1d;
+    --surface: #161829;
+    --surface-2: #1f2238;
+    --border: #2b2e4b;
+    --text: #eef0ff;
+    --muted: #a4a8c8;
+    --accent: #8f88ff;
+    --accent-2: #b48cff;
+    --accent-soft: #272852;
+    --accent-text: #d2cfff;
+    --on-accent: #10113a;
+    --border-strong: #5f6391;
+    --ok: #4fd69a;
+    --ok-soft: #12352a;
+    --warn: #f3c25c;
+    --warn-soft: #3a2e10;
+    --bad: #ff9a92;
+    --bad-soft: #42201f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --gradient: linear-gradient(135deg, #7c74ff 0%, #b07cff 100%);
   }
 }
 
@@ -50,7 +54,8 @@ html, body { margin: 0; }
 body {
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font: 15px/1.5 "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -494,3 +499,67 @@ details.fold > summary { list-style: none; }
 .game-result.good { color: var(--ok); }
 .react-bar.closed button { opacity: .45; }
 .react-bar button.selected { border-color: var(--ok); background: var(--ok-soft); opacity: 1; }
+
+/* =====================================================================
+   Visual refresh (2026-10): softer surfaces, gradient accent, segmented
+   tabs and tidier controls. Layout stays the same.
+   ===================================================================== */
+h1 { letter-spacing: -0.02em; }
+h2 { font-size: 16.5px; font-weight: 650; letter-spacing: -0.01em; }
+.card { border-color: var(--border); box-shadow: var(--shadow); padding: 18px; }
+button { border-radius: 11px; border-color: var(--border); font-weight: 500; }
+button.primary, a.button-like.primary {
+  background: var(--gradient); border-color: transparent; color: var(--on-accent);
+  box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+button.primary:hover, a.button-like.primary:hover { filter: brightness(1.06); background: var(--gradient); transform: translateY(-1px); }
+button.primary:active { transform: translateY(0) scale(0.98); }
+input[type="text"], input[type="number"], input[type="email"], input[type="password"], textarea, select {
+  border-radius: 11px; border-color: color-mix(in srgb, var(--border-strong) 55%, var(--border)); background: var(--surface);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+input:focus, textarea:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); outline: none; }
+.chip { font-weight: 500; }
+.banner { border-radius: 14px; background: var(--accent-soft); }
+.brand-mark { background: var(--gradient); border-radius: 8px; box-shadow: 0 4px 10px -4px color-mix(in srgb, var(--accent) 80%, transparent); }
+
+/* segmented tabs */
+.tabs { border: 0; background: var(--surface-2); padding: 4px; border-radius: 12px; gap: 4px; margin-bottom: 14px; }
+.tabs button { flex: 1; border: 0; border-radius: 9px; padding: 7px 8px; min-height: 34px; font-size: 13.5px; line-height: 1.2; }
+.tabs button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(19, 20, 43, 0.12); border: 0; }
+
+/* stat tiles */
+.tile { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); }
+.tile .label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; }
+.tile .value { background: var(--gradient); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 750; }
+
+/* top bar */
+.topbar { background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); }
+
+/* host tools switcher */
+.feature-bar select { min-height: 44px; font-size: 15px; font-weight: 650; background-color: var(--surface); border-color: var(--border); box-shadow: var(--shadow); }
+
+/* reactions and answers */
+.react-bar button { border-radius: 14px; min-height: 64px; background: var(--surface); }
+.react-bar button .emoji { font-size: 24px; }
+.react-bar button.selected { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+.reaction-tile { background: var(--surface-2); border-radius: 14px; }
+.moment-options button, .scale button { border-radius: 12px; min-height: 46px; }
+.moment-options button:hover, .scale button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.bar { height: 12px; border-radius: 99px; }
+.bar > span { background: var(--gradient); border-radius: 99px; }
+.q { border-radius: 14px; background: var(--surface); }
+.vote-btn { border-radius: 10px; }
+
+/* prompt takeover: give the one thing to do a clear frame */
+body.prompting .moment-card { border-color: transparent; box-shadow: 0 0 0 2px var(--accent), 0 18px 40px -20px color-mix(in srgb, var(--accent) 60%, transparent); }
+.game-tile { border-radius: 16px; box-shadow: var(--shadow); }
+.game-prompt { font-size: 24px; letter-spacing: -0.02em; }
+.done-note { background: var(--ok-soft); color: var(--ok); border: 0; }
+.done-note b { color: var(--ok); }
+.game-picks button { border-radius: 14px; }
+.game-picks button[aria-checked="true"] { background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); border-color: transparent; }
+.opt-row .opt-input { border-width: 0 0 1px; border-radius: 0; box-shadow: none; }
+.opt-row .opt-input:focus { box-shadow: none; border-bottom: 2px solid var(--accent); }
+details.fold > summary h2::after { content: none; }
+.toast { border-radius: 12px; box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.45); }
