@@ -2,13 +2,13 @@
   "addOns": {
     "common": {
       "name": "Engage",
-      "logoUrl": "https://YOUR-ENGAGE-ADDRESS/img/engage-128.png"
+      "logoUrl": "https://engage.neuronlab.in/img/engage-128.png"
     },
     "meet": {
       "web": {
-        "sidePanelUrl": "https://YOUR-ENGAGE-ADDRESS/meet/panel",
+        "sidePanelUrl": "https://engage.neuronlab.in/meet/panel",
         "supportsScreenSharing": false,
-        "addOnOrigins": ["https://YOUR-ENGAGE-ADDRESS"]
+        "addOnOrigins": ["https://engage.neuronlab.in"]
       }
     }
   }

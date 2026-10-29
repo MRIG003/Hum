@@ -1,99 +1,146 @@
-# Engage: Google Workspace Marketplace listing (resubmission)
+# Engage: Google Workspace Marketplace listing
 
-Updated 16 October 2026 after Google's rejection of 15 October 2026. Copy these values into the **Store listing** tab of the Google Workspace Marketplace SDK (Google Cloud console, project "Engage", project number 124557177750). Field names may differ slightly from Google's current form.
+Updated 29 October 2026 for the new design, logo and address (https://engage.neuronlab.in). Copy these values into the Google Cloud console, project "Engage" (project number 124557177750). Google's field names may differ slightly from the ones below.
 
-## Why the first submission was rejected, and what changed
+## What Google rejected before, and how this version handles it
 
-| Google's reason | What changed |
+| Google's reason (15 October 2026) | How this listing handles it |
 |---|---|
-| Give proper attribution when using Google trademarks: add a ™ after each Google product name in the app name or descriptions, and add a footnote | "Google Meet" now reads "Google Meet™" everywhere below, and the footnote is the last line of the detailed description. The app name stays plain "Engage" |
-| Screenshots must be clear, readable, 1280 x 800, show the real app and how to use it, with no browser or operating-system windows, at least one and preferably five | Five new 1280 x 800 screenshots of the real app at full size, all in this folder (see Images) |
+| Attribution for Google trademarks: a ™ after each Google product name in the descriptions, plus a footnote | Every "Google Meet" below reads "Google Meet™". The footnote is the last line of the detailed description. The app name stays plain "Engage" |
+| Screenshots must be 1280 x 800, readable, show the real app and how to use it, with no browser or operating-system windows | Five new 1280 x 800 screenshots. Each shows the real Engage side panels with a one-line caption and nothing else (see Images) |
 
-## Basics
+## Step 1: Meet add-on deployment
+
+Google Cloud console, **Google Workspace Add-ons API**, then **Alternate runtimes** (or **Deployments**). Edit the Engage deployment, or create one, and paste in `../deployment.json`:
+
+| Field | Value |
+|---|---|
+| Logo URL | https://engage.neuronlab.in/img/engage-128.png |
+| Side panel URL | https://engage.neuronlab.in/meet/panel |
+| Add-on origins | https://engage.neuronlab.in |
+| Screen sharing | Off |
+
+Install the deployment for your own account and try it in a real Meet call before you submit. Check that the host panel and a second account's participant panel both open.
+
+## Step 2: OAuth consent screen
+
+| Field | Value |
+|---|---|
+| App name | Engage |
+| User support email | engage2028@gmail.com |
+| App logo | `icon-128.png` |
+| App home page | https://engage.neuronlab.in/ |
+| Privacy policy | https://engage.neuronlab.in/privacy.html |
+| Terms of service | https://engage.neuronlab.in/terms.html |
+| Authorised domain | neuronlab.in |
+| Developer contact | engage2028@gmail.com |
+| Scopes | None. Engage requests no Google user-data scopes |
+
+Google requires the authorised domain to be verified in **Google Search Console** by the same Google account that owns the project. Add `neuronlab.in` as a Domain property there, and add the TXT record it gives you in Cloudflare DNS.
+
+## Step 3: Marketplace SDK, App configuration
+
+| Field | Value |
+|---|---|
+| App visibility | Public |
+| Installation settings | Individual + admin install |
+| App integration | Google Workspace add-on, using the deployment from step 1 |
+| Developer links | The four links under Links below |
+
+## Step 4: Marketplace SDK, Store listing
+
+### Basics
 
 | Field | Value |
 |---|---|
 | Application name | Engage |
 | Developer name | Engage |
 | Developer email | engage2028@gmail.com |
-| Category | Productivity (or Business tools, if Productivity is not offered) |
+| Category | Productivity |
 | Language | English |
 | Pricing | Free |
 
-## Short description
+### Short description
 
 ```
-See how engaged your meeting is, live. Quick polls, questions and reactions inside Google Meet™.
+Live polls, questions, reactions and quick games in the Google Meet™ side panel.
 ```
 
-## Detailed description
+### Detailed description
 
 Paste everything in this block, including the last line.
 
 ```
-Engage helps meeting hosts see whether people are following along, without getting in the way.
+Engage helps meeting hosts keep people involved, without getting in the way.
 
-Start Engage from the Activities panel in Google Meet™. People in the call join with their name, react, ask questions and answer short polls and pulse checks. The host sees engagement as the meeting goes, gets suggestions when it dips, and sees who has been quiet.
+Start Engage from the Activities panel in Google Meet™. The host picks a tool from one menu in the side panel. Everyone in the call answers in their own panel, then goes back to the meeting.
 
-What you get
-- Live engagement for the whole meeting, with advice when it drops.
-- One-tap pulse checks, polls, word clouds and recall checks.
-- Questions from the room, with votes, pinning and merging of duplicates.
-- A list of who has had no activity in Engage for a few minutes, with details for each person.
-- A short summary and a CSV export after the meeting.
+What the host can do
+- Ask the room: polls, pulse checks, recall checks and word clouds. Pick a ready-made question or write your own, and add options as you would in a form.
+- Take questions from the room, with votes, pinning and merging of duplicates.
+- Open the floor for a set time: each person can send each reaction once.
+- Run a one-minute quick game: colour tap, even or odd, quick maths, biggest or smallest, odd one out. Each person sees only their own score.
+- See engagement as the meeting goes, and who has had no activity for a few minutes.
+- Get a coach summary after the meeting, a CSV export, and an emailed summary for signed-in hosts.
 
 Calm by design
-- No sound, no pop-ups over what you are sharing, and a Focus moment that pauses everything.
+- No sound and no pop-ups over what you are sharing. A Focus moment pauses everything.
 - Engage only sees what people do inside Engage. It does not record audio, video or your screen, and it does not measure attention.
 - Everyone is told what the host can see before they join.
+- Meetings end on their own when everyone has left.
+
+Try it without a meeting at https://engage.neuronlab.in/try
 
 Google Meet™ is a trademark of Google LLC.
 ```
 
-## Links
+### Links
 
 | Field | Value |
 |---|---|
-| Privacy policy URL | https://engage-app-u4c5.onrender.com/privacy.html |
-| Terms of service URL | https://engage-app-u4c5.onrender.com/terms.html |
-| Support URL | https://engage-app-u4c5.onrender.com/support.html |
-| Application website | https://engage-app-u4c5.onrender.com/ |
+| Application website | https://engage.neuronlab.in/ |
+| Privacy policy URL | https://engage.neuronlab.in/privacy.html |
+| Terms of service URL | https://engage.neuronlab.in/terms.html |
+| Support URL | https://engage.neuronlab.in/support.html |
 
-Open all four in a browser before resubmitting. The Render service sleeps when idle, so the first load can take about a minute.
-
-## Images (all in this folder)
+### Images (all in this folder)
 
 | Use | File | Size |
 |---|---|---|
 | Application icon | `icon-128.png` | 128 x 128 |
 | Small icon | `icon-32.png` | 32 x 32 |
 | Banner / tile | `tile-220x140.png` | 220 x 140 |
-| Screenshot 1: the host console, live | `shot-1-host-live.png` | 1280 x 800 |
-| Screenshot 2: a pulse check with results and questions | `shot-2-ask-and-results.png` | 1280 x 800 |
-| Screenshot 3: one person's details | `shot-3-person-details.png` | 1280 x 800 |
-| Screenshot 4: what a participant sees | `shot-4-participant-prompt.png` | 1280 x 800 |
-| Screenshot 5: host and participant side panels | `shot-5-side-panels.png` | 1280 x 800 |
+| Screenshot 1: asking the room | `shot-1-ask-the-room.png` | 1280 x 800 |
+| Screenshot 2: live results and the open floor | `shot-2-live-results.png` | 1280 x 800 |
+| Screenshot 3: who has gone quiet | `shot-3-who-is-quiet.png` | 1280 x 800 |
+| Screenshot 4: a quick game | `shot-4-quick-games.png` | 1280 x 800 |
+| Screenshot 5: the coach summary | `shot-5-coach-summary.png` | 1280 x 800 |
 
-The screenshots use made-up names and the real public address. They show Engage's own pages only, with no Meet interface or browser window. Delete the old screenshots before uploading these.
+Delete every old screenshot in the listing before you upload these, in order. The names in them are made up.
 
-## Visibility
+### Notes for the reviewer
 
-Google's publishing guide says a **private** add-on (your Workspace organisation only) skips Google's review and a **public** one is reviewed. Because this app was reviewed and rejected, check which visibility was saved on the earlier submission. Google says the choice cannot be changed after it is saved, so do not change it without understanding what it does.
+Paste this into the "additional information" or "test instructions" field, if the form has one.
 
-| Choice | Who can use it | Needs |
-|---|---|---|
-| Private | Only people in your Google Workspace organisation | A Google Workspace organisation. A plain personal Gmail has none |
-| Public | Anyone | Google's review of the complete listing |
+```
+No account or sign-in is needed to use Engage inside Google Meet™.
 
-## OAuth consent screen
+1. In a Google Meet™ call, open Activities and choose Engage.
+2. Choose Start Engage. A meeting code and invite appear under "Meeting code and invite link" in the Host tools menu.
+3. From a second account in the same call, open Engage from Activities. The participant panel opens and joins the meeting.
+4. As host, choose Ask the room, pick a ready-made question and choose Launch. The question appears in the participant's panel.
+5. Try Reactions (Open the floor) and Quick games from the same menu.
+6. End the meeting to see the coach summary.
 
-Application name **Engage**. Support and developer contact email: engage2028@gmail.com. Engage requests no Google user-data scopes.
+To see everything without a Meet call, open https://engage.neuronlab.in/try
+```
 
-## Resubmission checklist
+## Step 5: Publish
 
-1. Wait for the Render deploy to show **Live** and open the four links above.
-2. Marketplace SDK, **Store listing**: replace the short and detailed descriptions with the blocks above.
-3. Delete the old screenshots. Upload the five `shot-*.png` files, in order.
-4. Check the icons and tile are still the ones in this folder.
-5. Save, then **republish / resubmit**, as Google's email says.
-6. If Google rejects it again, send the new rejection email to the engineer who maintains Engage. Each reason is usually a small listing fix.
+1. Open the four links above and https://engage.neuronlab.in/try in a browser. All should load.
+2. Save each tab in the Marketplace SDK, then choose **Publish** (or **Resubmit**). Google emails the result, usually within a few days to a few weeks.
+3. If Google rejects it again, give the rejection email to whoever maintains Engage. Most reasons are small listing fixes.
+
+## Once it is published
+
+Anyone can install Engage from the Workspace Marketplace, or from **Activities** in a Meet call, then **Get add-ons**. A participant who doesn't have it installed sees an invitation to install it when the host starts Engage. Admins of Workspace organisations can install it for everyone at once.
